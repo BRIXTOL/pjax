@@ -23,7 +23,7 @@ export const supported = !!(
 /**
  * Connect Pjax
  */
-export const connect = (options: IOptions) => {
+export function connect (options: IOptions) {
 
   store.connect(options);
 

@@ -11,9 +11,7 @@ let ratelimit: number = 0;
 let storage: number = 0;
 let showprogress: boolean = false;
 
-export const transit = object<{ [url: string]: XMLHttpRequest }>({
-  configurable: true
-});
+export const transit = object<{ [url: string]: XMLHttpRequest }>({ configurable: true });
 
 /**
  * Async Timeout
@@ -88,13 +86,11 @@ export function cacheSize (): ICacheSize {
 export function cancel (url: string): void {
 
   if (transit.has(url)) {
-
     transit.get(url).abort();
     transit.delete(url);
-
     console.warn(`Pjax: XHR Request was cancelled for url: ${url}`);
-
   }
+
 };
 
 /**

@@ -21,6 +21,7 @@ export interface IOptions {
      * normal page visit will be executed.
      *
      * ---
+     *
      * @default 3000
      */
     timeout?: number;
@@ -35,6 +36,7 @@ export interface IOptions {
      * Timeout limit will run precedence!
      *
      * ---
+     *
      * @default 150
      */
     poll?: number;
@@ -44,6 +46,7 @@ export interface IOptions {
      * Setting this to `false` is not reccomended.
      *
      * ---
+     *
      * @default true
      */
     async?: boolean;
@@ -97,9 +100,24 @@ export interface IOptions {
        * `<link>` prefetches, else when cache is enabled it uses XHR._
        *
        * ---
+       *
        * @default true
        */
       enable?: boolean;
+
+      /**
+       * Whether or not mouseover (hover) prefetching should be triggered on
+       * link elements annotated with `data-pjax-prefetch="mouseover"` or trigger
+       * on all `<a>` href link elements.
+       *
+       * > If you set the trigger to `href` you can annotate links you wish to exclude
+       * from prefetch with `data-pjax-prefetch="false"`.
+       *
+       * ---
+       *
+       * @default 'href'
+       */
+      trigger?: 'attribute' | 'href'
 
       /**
        * Controls the mouseover fetch delay threshold. Requests will fire on mouseover
@@ -129,9 +147,9 @@ export interface IOptions {
      */
     intersect?: {
       /**
-       * Enable or Disable intersection prefetching. Intersect prefetching leverages the
+       * Enable or disable intersection prefetching. Intersect prefetching leverages the
        * Intersection Observer API to fire requests when elements become visible in viewport.
-       * When intersect prefetches are disabled, all `data-pjax-prefetch="intersect"`
+       * When intersect prefetch is disabled, all `data-pjax-prefetch="intersect"`
        * attribute configs will be ignored.
        *
        * > _If cache if disabled then prefetches will be dispatched using HTML5

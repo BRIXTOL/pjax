@@ -1,5 +1,5 @@
 import { supportsPointerEvents } from 'detect-it';
-import { getLink, getTargets, forEach, attrparse } from '../app/utils';
+import { getLink, getTargets, attrparse } from '../app/utils';
 import { object } from '../app/object';
 import { dispatchEvent } from '../app/events';
 import { y0x0 } from './scroll';
@@ -34,7 +34,7 @@ function cleanup (url: string): boolean {
  */
 function onMouseleave (event: MouseEvent) {
 
-  const target = getLink(event.target, 'a[data-pjax-prefetch="hover"]');
+  const target = getLink(event.target, store.config.session.hovers);
 
   if (target) {
     cleanup(path.get(target).url);
@@ -68,7 +68,7 @@ async function prefetch (state: IPage): Promise<boolean> {
 };
 
 /**
- * Attempts to visit location, Handles bubbled mousovers and
+ * Attempts to visit location, Handles bubbled mouseovers and
  * Dispatches to the fetcher. Once item is cached, the mouseover
  * event is removed.
  *
@@ -76,7 +76,7 @@ async function prefetch (state: IPage): Promise<boolean> {
  */
 function onMouseover (event: MouseEvent): void {
 
-  const target = getLink(event.target, 'a[data-pjax-prefetch="hover"]');
+  const target = getLink(event.target, store.config.session.hovers);
 
   if (!target) return undefined;
 
@@ -151,10 +151,12 @@ function disconnect (target: EventTarget): void {
  */
 export function start (): void {
 
-  if (!connect.hover) {
-    forEach(handleHover)(getTargets('a[data-pjax-prefetch="hover"]'));
-    connect.hover = true;
-  }
+  if (connect.hover) return;
+
+  getTargets(store.config.session.hovers).forEach(handleHover);
+
+  connect.hover = true;
+
 }
 
 /**
@@ -164,9 +166,11 @@ export function start (): void {
  */
 export function stop (): void {
 
-  if (connect.hover) {
-    transit.clear();
-    forEach(disconnect)(getTargets('a[data-pjax-prefetch="hover"]'));
+  if (!connect.hover) return;
+
+  if (transit.clear()) {
+    getTargets(store.config.session.hovers).forEach(disconnect);
     connect.hover = false;
   }
+
 };

@@ -7,7 +7,7 @@
   "owner": "BRIXTOL TEXTILES",
   "license": "MIT",
   "type": "module",
-  "types": "./package/index.d.ts",
+  "types": "./package/types/index.d.ts",
   "main": "./package/pjax.esm.js",
   "module": "./package/pjax.esm.js",
   "browser": "./package/pjax.umd.js",

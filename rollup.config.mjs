@@ -47,6 +47,18 @@ export default rollup(
               '.js'
             ]
           }
+        ),
+        plugin.copy(
+          {
+            copyOnce: env.watch,
+            onlyFiles: true,
+            targets: [
+              {
+                src: 'src/types/*',
+                dest: 'package/types'
+              }
+            ]
+          }
         )
       ]
     )(

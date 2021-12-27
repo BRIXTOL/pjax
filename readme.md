@@ -4,17 +4,18 @@
 
 ##### _THE PJAX SOLUTION TO RULE THEM ALL_
 
-Blazing fast, lightweight (9kb gzipped), feature full drop-in next generation pjax for SSR web applications. This pjax variation supports multiple fragment replacements, advanced pre-fetching capabilities executing via mouse/pointer/touch or intersection events and provides a snapshot caching engine which prevents subsequent requests from occurring resulting in instantaneous page navigations.
+Functional, blazing fast, lightweight (9kb gzipped) and feature full new generation pjax solution for instantaneous page navigation of SSR web applications. This pjax variation supports multiple fragment replacements, advanced pre-fetching capabilities which execute via mouse, pointer, touch or intersection events and employs a snapshot caching engine to prevent subsequent requests from occurring.
 
 ### Features
 
 - Simple and painless integration
-- Pre-fetching capabilities
-- Snapshot caching engine
-- Lifecycle event dispatching
-- Routing and Hook strategy
-- Preemptive fetch capability
+- Pre-fetching capabilities using click, hover and intersect
+- Snapshot caching engine and per-page state control.
+- Powerful target and document triggered lifecycle event dispatching
+- Client side DOM hydration approach approach
+- Supports both append and prepend fragment replacements
 - Dependency management system
+- Couples perfectly with [stimulus.js](https://stimulusjs.org/).
 
 ##### Demo
 
@@ -22,7 +23,7 @@ We are using this module live on our [webshop](https://brixtoltextiles.com).
 
 ### Why?
 
-The landscape of pjax based solution has become rather scarce. The current bread winners either offer the same thing or for our use cases were vastly over engineered and rather shitty tbh. This pjax variation couples together various techniques I found to be the most effective in enhancing the performance of SSR rendered web application that fetch pages over the wire. The pjax approach is tried and tested in the web nexus and while many folks tend to dismiss this tactic for improving TTFB load times of web applications there is actually very little difference in terms of rendering speed when this technique is appropriated correctly and in some cases it can outperform the rendering performance of a virtual dom library.
+The landscape of pjax based solution has become rather scarce. The current bread winners either offer the same thing or for our use case were vastly over engineered. This pjax variation couples together various techniques found to be the most effective in enhancing the performance of SSR rendered web application which are fetching pages over the wire.
 
 ## Install
 
@@ -34,9 +35,9 @@ pnpm add @brixtol/pjax
 
 ## Usage
 
-To initialize, call `Pjax.connect()` in your bundle and optionally pass preset configuration. By default it will replace the entire `<body>` fragment upon each navigation. You should define a set of `targets[]` whose inner contents should change on a per-page basis for the most optimal performance.
+To initialize, call `Pjax.connect()` in your bundle and optionally pass preset configuration. By default it will replace the entire `<body>` fragment upon each navigation. You should define a set of `targets[]` whose inner contents should change on a per-page basis for optimal performance.
 
-> The typings provided in this package will describe each option in good detail, below are the defaults
+> The typings provided in this package will describe each option in good detail, below are the defaults and all options are optional.
 
 <!-- prettier-ignore -->
 ```js
@@ -58,6 +59,7 @@ Pjax.connect({
     preempt: undefined, // Accepts [] or { '/path': [] }
     mouseover: {
       enable: true, // You want the speed? leave this as true.
+      trigger: 'attribute',
       threshold: 100,
     },
     intersect: {
@@ -327,7 +329,7 @@ The contact page will replace an additional fragment with the id value of `foo` 
 
 ## Lifecycle Events
 
-Lifecycle events are dispatched to the document upon each navigation. You can access context information from within `event.detail` or cancel events with `preventDefault()` and prevent execution.
+Lifecycle events are dispatched to the document upon each navigation. You can access contextual information from within `event.detail` or cancel events with `preventDefault()` or by returning boolean `false` to prevent execution from occurring.
 
 <!-- prettier-ignore -->
 ```javascript
@@ -344,8 +346,11 @@ document.addEventListener("pjax:request");
 // Triggered before a page is cached
 document.addEventListener("pjax:cache");
 
-// Triggered before a page is rendered
+// Triggered before a page or fragment is rendered
 document.addEventListener("pjax:render");
+
+// Triggered before a fragment is hydrated
+document.addEventListener("pjax:hydrate"); // { detail: { target: HTMLElement } }
 
 // Triggered after a page has rendered
 document.addEventListener("pjax:load");
@@ -356,7 +361,7 @@ document.addEventListener("pjax:module");
 
 ## Methods
 
-In addition to Lifecycle events, a list of methods are available. Methods will allow you some basic programmatic control of a Pjax session.
+In addition to Lifecycle events, you also have a list of methods available. Methods will allow you some basic programmatic control of the Pjax session.
 
 ```typescript
 
@@ -388,7 +393,7 @@ Pjax.disconnect(): void
 
 ## Attributes
 
-Link elements can be annotated with `data-pjax` attributes. You can control how pages are rendered by passing the below attributes on `<a>` nodes.
+Link elements can be annotated with `data-pjax` attributes. You can control how pages are rendered by passing the below attributes on `<a>` elements.
 
 #### data-pjax-eval
 
@@ -732,17 +737,17 @@ Example
 
 ## State
 
-Each page has an object state value. Page state is immutable and created for every unique url `/path` or `/pathname?query=param` value encountered throughout a pjax session. The state value of each page is added to its pertaining History stack record.
+Each page visited has a state value. Page state is immutable and created for every unique url `/path` or `/pathname?query=param` value that has been encountered throughout the pjax session. The state value of each page is added to its pertaining History stack record and will referenced on subsequent visits. This approach drastically improves TTFB.
 
 > Navigation sessions begin once a Pjax connection has been established and ends when a browser refresh is executed or url origin changes.
 
 #### Read
 
-You can access a readonly copy of page state via the `event.details.state` property within dispatched lifecycle events or via the `Pjax.cache()` method. The caching engine used by this Pjax variation acts as mediator when a session begins, so when you access page state via the `Pjax.cache()` method you are given a bridge to the Map object of all active sessions cache data.
+You can access a readonly copy of page via the `event.details.state` property passed in certain dispatched lifecycle events or via the `Pjax.cache()` method. The caching engine used by this Pjax variation acts as mediator when a session begins. When you access page state via the `Pjax.cache()` method you are given a bridge to the object that holds all active session cache data.
 
 #### Write
 
-State modifications are carried out via link attributes or when executing a programmatic visit using the `Pjax.visit()` method. The visit method provides an `options` parameter for adjustments to be merged. Though this method will only allow you to modify the next navigation you should avoid modifying state outside of the available methods, instead treat it as readonly.
+State modifications are carried out via link attributes, when executing a programmatic visit using the `Pjax.visit()` method or from within dispatched events. When using the `Pjax.visit()` method you can pass state modification via the `options` parameter and will be merged before the visit begins. Though this method will only allow you to modify the next navigation you should avoid modifying state outside of the available methods and instead treat it as readonly.
 
 ```typescript
 interface IPage {
@@ -801,6 +806,7 @@ interface IPage {
    * List of fragments to append from and to. Accepts multiple.
    *
    * @example
+   *
    * [['#main', '.header'], ['[data-attr]', 'header']]
    */
   append?: null | Array<[from: string, to: string]>;
@@ -809,6 +815,7 @@ interface IPage {
    * List of fragments to be prepend from and to. Accepts multiple.
    *
    * @example
+   *
    * [['#main', '.header'], ['[data-attr]', 'header']]
    */
   prepend?: null | Array<[from: string, to: string]>;
@@ -914,13 +921,11 @@ interface IPage {
 
 ## Contributing
 
-This module is written in TypeScript. Production bundles export in ES2015 format. Legacy support is provided as an ES5 UMD bundle. This project leverages JSDocs and Type Definition files for its type checking, so all features you enjoy with TypeScript are available.
-
-This module is consumed by us for a couple of our projects and has been open sourced but exists as part of a mono/multi repo. We will update it according to what we need. Feel free to suggest features or report bugs, PR's are of course welcome!
+This module is written in TypeScript. Production bundles exports to ES2015. This project has been open sourced from within a predominantly closed source mono/multi repo. We will update it according to what we need. Feel free to suggest features or report bugs and PR's are welcome!
 
 ## Acknowledgements
 
-This module combines concepts originally introduced by other awesome Open Source projects and owes its creation and overall approach to those originally creators:
+This module combines concepts originally introduced by other awesome Open Source projects:
 
 - [Defunkt Pjax](https://github.com/defunkt/jquery-pjax)
 - [Pjax.js](https://github.com/brcontainer/pjax.js)

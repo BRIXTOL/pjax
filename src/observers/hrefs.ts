@@ -67,7 +67,7 @@ function handleTrigger (event: MouseEvent): void {
 
   if (!linkEvent(event)) return undefined;
 
-  const target = getLink(event.target, 'a:not([data-pjax-disable]):not([href^="#"])');
+  const target = getLink(event.target, store.config.session.clicks);
 
   if (!target) return undefined;
 

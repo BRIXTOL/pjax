@@ -4,7 +4,7 @@ import { dispatchEvent } from './events';
 import { progress } from './progress';
 import { IPage } from '../types/page';
 import history from 'history/browser';
-import { from } from '../constants/native';
+import { from, is } from '../constants/native';
 import * as store from './store';
 import * as mouseover from '../observers/hover';
 import * as intersect from '../observers/intersect';
@@ -56,11 +56,9 @@ function observeHead(
 function DOMScripts ({ src, id = src }: HTMLScriptElement): void {
   if (!loadjs.isDefined(id)) {
     loadjs(src, id, {
-      before: (_, script) =>
-        script.setAttribute('data-pjax-eval', 'false'),
+      before: (_, script) => script.setAttribute('data-pjax-eval', 'false'),
       success: () => dispatchEvent('pjax:script', { id }),
-      error: path =>
-        console.error(`Pjax: Failed to load script ${path} `),
+      error: path => console.error(`Pjax: Failed to load script ${path} `),
       numRetries: 1
     });
   }
@@ -69,10 +67,8 @@ function DOMScripts ({ src, id = src }: HTMLScriptElement): void {
 /**
  * DOM Head Nodes
  */
-function DOMHeadNodes (
-  nodes: string[],
-  { ...children }: HTMLHeadElement
-): string {
+function DOMHeadNodes (nodes: string[], { ...children }: HTMLHeadElement): string {
+
   forEach(DOMNode => {
     if (DOMNode.tagName === 'TITLE') return null;
     if (DOMNode.getAttribute('data-pjax-eval') !== 'false') {
@@ -84,6 +80,7 @@ function DOMHeadNodes (
   })(children);
 
   return nodes.join('');
+
 }
 
 /**
@@ -114,9 +111,10 @@ function DOMHead ({ children }: HTMLHeadElement): void {
 
   // console.log(fragment.children);
 
-  forEach(DOMNode => {
+  for (const DOMNode of fragment.children) {
     if (!DOMNode.hasAttribute('data-pjax-eval')) document.head.appendChild(DOMNode);
-  }, from(fragment.children));
+  }
+
 }
 
 /**
@@ -126,6 +124,9 @@ function appendTrackedNode (node: Element): void {
 
   // tracked element must contain id
   if (!node.hasAttribute('id')) return;
+
+  // skip hydration trackers
+  if (node.getAttribute('data-pjax-track') === 'hydrate') return;
 
   if (!tracked.has(node.id)) {
     document.body.appendChild(node);
@@ -167,14 +168,14 @@ function renderNodes (state: IPage, target: Document) {
   const selector = nodes.join(',');
   const current = document.body.querySelectorAll(selector);
 
-  if (current.length === 0) return document.body.replaceWith(target.body);
+  if (is(current.length, 0)) return document.body.replaceWith(target.body);
 
   const fetched = target.body.querySelectorAll(selector);
 
   current.forEach((node, i) => {
 
     if (!node.matches(nodes[i])) return;
-    if (!dispatchEvent('pjax:render', { target: nodes[i] }, true)) return;
+    if (!dispatchEvent('pjax:render', { target: node, newTarget: fetched[i] }, true)) return;
 
     node.replaceWith(fetched[i]);
 
@@ -193,14 +194,34 @@ function renderNodes (state: IPage, target: Document) {
 
 }
 
+/**
+ * Node Hydration
+ *
+ * Executes node replacements hydrating the DOM with
+ * the fetched target. All nodes provided with `data-pjax-hydrate`
+ * or via the `visit.hydrate[]` method are replaced. TextNode types
+ * will be swapped out via `innerHTML` to prevent missing replacements
+ * for occuring.
+ */
 function hydrateNodes (target: Document, selectors: string[]) {
 
   const nodes = selectors.join(',');
-  const current = document.body.querySelectorAll(nodes);
+  const current = document.body.querySelectorAll<HTMLElement>(nodes);
 
   if (current.length > 0) {
-    const fetched = target.body.querySelectorAll(nodes);
-    current.forEach((node, i) => node.replaceWith(fetched[i]));
+
+    const fetched = target.body.querySelectorAll<HTMLElement>(nodes);
+
+    current.forEach((node, i) => {
+      if (dispatchEvent('pjax:hydrate', { target: node, newTarget: fetched[i] }, true)) {
+        // InnerHTML replacment on text nodes
+        if (is(node.firstChild.nodeType, Node.TEXT_NODE)) {
+          node.innerHTML = fetched[i].innerHTML;
+        } else {
+          node.replaceWith(fetched[i]);
+        }
+      }
+    });
   }
 
 }
@@ -236,12 +257,12 @@ export function update (state: IPage, popstate?: boolean): IPage {
 
   if (state.hydrate) {
 
+    state.hydrate.push('[data-pjax-track="hydrate"]');
+
     hydrateNodes(target, state.hydrate);
 
     const { url } = store.pages.update(state.url, { hydrate: undefined });
     store.snaps.clear(store.pages.clear([ url ]));
-
-    console.log(store.pages.all);
 
   } else {
 

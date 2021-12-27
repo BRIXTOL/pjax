@@ -10,7 +10,7 @@ import * as scroll from '../observers/scroll';
 import * as progress from './progress';
 
 /**
- * Snapshots
+ * Page State
  */
 export const pages = object<{ [url: string]: IPage }>({
   writable: true,
@@ -28,8 +28,17 @@ export const snaps = object<{ [id: string]: string }>({
 /**
  * Configuration
  */
-export const config: IOptions = {
+export const config: IOptions & {
+  session: {
+    clicks: string;
+    hovers: string;
+  }
+} = {
   targets: [ 'body' ],
+  session: {
+    clicks: 'a:not([data-pjax-disable]):not([href^="#"])',
+    hovers: 'a:not([data-pjax-disable]):not([href^="#"])'
+  },
   request: {
     timeout: 30000,
     poll: 150,
@@ -41,6 +50,7 @@ export const config: IOptions = {
     mouseover: {
       enable: true,
       threshold: 100,
+      trigger: 'href',
       proximity: 0
     },
     intersect: {
@@ -78,12 +88,17 @@ export const config: IOptions = {
  * upon Pjax initialization. This function acts
  * as a class `constructor` establishing an instance.
  */
-export function connect (options: IOptions = {}) {
+export function connect (options: IOptions = {}): void {
 
   const updated = merge(config, {
     ...options, // PRESETS PATCH COPY
     request: { ...options?.request, dispatch: undefined },
-    cache: { ...options?.cache, save: undefined }
+    cache: { ...options?.cache, save: undefined },
+    session: {
+      hovers: config.prefetch.mouseover.trigger === 'attribute'
+        ? 'a:not([data-pjax-disable]):not([href^="#"])'
+        : 'a:not([data-pjax-disable]):not([href^="#"]):not([data-pjax-prefetch="false"])'
+    }
   });
 
   assign(config, updated);
@@ -137,9 +152,7 @@ export function capture (state: IPage, snapshot: string): IPage {
  */
 export function hydrate (state: IPage, snapshot: string): IPage {
 
-  const { lastpath } = state.location;
-  const page = pages.update(lastpath, { hydrate: state.hydrate });
-
+  const page = pages.update(state.location.lastpath, { hydrate: state.hydrate });
   snaps.set(page.snapshot, snapshot);
 
   return page;

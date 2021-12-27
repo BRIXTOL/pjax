@@ -34,9 +34,9 @@ function onload (): void {
   if (store.config.cache.reverse) {
     const previous: { location?: ILocation } = browser.location.state;
     if (previous?.location?.lastpath) {
-      request.get(previous.location.lastpath, 'reverse').then(() => {
-        browser.replace(window.location, page);
-      });
+      request
+        .get(previous.location.lastpath, 'reverse')
+        .then(() => browser.replace(window.location, page));
     }
   } else {
     browser.replace(window.location, page);
