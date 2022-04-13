@@ -1,135 +1,314 @@
-> _This is still in beta stages, use it with care and expect some changes to be shipped before official release. Tests are still being worked on and will be pushed at official v1, sit tight._
+# @brixtol/pjax
 
-## @brixtol/pjax
-
-##### _THE PJAX SOLUTION TO RULE THEM ALL_
-
-Functional, blazing fast, lightweight (9kb gzipped) and feature full new generation pjax solution for instantaneous page navigation of SSR web applications. This pjax variation supports multiple fragment replacements, advanced pre-fetching capabilities which execute via mouse, pointer, touch or intersection events and employs a snapshot caching engine to prevent subsequent requests from occurring.
+A blazing fast, lightweight (7.9kb gzipped) and feature full new generation pjax solution. This pjax variation supports advanced pre-fetching capabilities, multiple fragment replacements and employs a snapshot caching engine that prevents subsequent requests from occurring. The perfect solution for SSR or SaaS powered web applications.
 
 ### Features
 
-- Simple and painless integration
-- Pre-fetching capabilities using click, hover and intersect
+- Simple and painless integration.
+- Pre-fetching capabilities using hover, intersect and proximity triggers.
 - Snapshot caching engine and per-page state control.
-- Powerful target and document triggered lifecycle event dispatching
-- Client side DOM hydration approach approach
-- Supports both append and prepend fragment replacements
-- Dependency management system
+- Powerful pub/sub event driven lifecycle triggers.
+- Provides a client side DOM hydration approach.
+- Supports targeted append and prepend fragment replacements.
+- Handles inlined and external script evaluation (asynchronously).
 - Couples perfectly with [stimulus.js](https://stimulusjs.org/).
+- Attribute driven programmatic control.
 
-##### Demo
+### Demo
 
 We are using this module live on our [webshop](https://brixtoltextiles.com).
 
 ### Why?
 
-The landscape of pjax based solution has become rather scarce. The current bread winners either offer the same thing or for our use case were vastly over engineered. This pjax variation couples together various techniques found to be the most effective in enhancing the performance of SSR rendered web application which are fetching pages over the wire.
+The landscape of pjax based solution has become rather scarce. The current bread winners tend to offer the same thing or for our use case were either over or under engineered. This pjax variation couples together various techniques found to be the most effective in enhancing the performance of SSR rendered web application that fetch pages over the wire.
 
-## Install
+# Table of Contents
+
+1. [Install](#install)
+2. [Recommendations](#recommendations)
+3. [Usage](#usage)
+4. [Options](#options)
+5. [Real World](#real-world)
+6. [Lifecycle Events](#lifecycle-events)
+7. [Methods](#methods)
+8. [Attributes](#attributes)
+9. [State](#state)
+10. [How it works](#how-it-works)
+11. [Contributing](#contributing)
+12. [Acknowledgements](#acknowledgements)
+
+# Install
+
+This module is distributed as ESM and designed to work in the browser environment.
+
+### pnpm
 
 ```cli
 pnpm add @brixtol/pjax
 ```
 
-> _Because [pnpm](https://pnpm.js.org/en/cli/install) is dope and does dope shit._
+_Because [pnpm](https://pnpm.js.org/en/cli/install) is dope and does dope shit._
 
-## Usage
+### Yarn
 
-To initialize, call `Pjax.connect()` in your bundle and optionally pass preset configuration. By default it will replace the entire `<body>` fragment upon each navigation. You should define a set of `targets[]` whose inner contents should change on a per-page basis for optimal performance.
+```cli
+yarn add @brixtol/pjax
+```
+
+_Stop using Yarn, it sucks. Choose [pnpm](https://pnpm.js.org/en/cli/install) and emancipate yourself._
+
+### npm
+
+```cli
+npm i @brixtol/pjax
+```
+
+_Okay, Boomer..._
+
+### cdn
+
+```
+https://unpkg.com/@brixtol/pjax
+```
+
+_Be as you are.._
+
+# Recommendations
+
+In order to get the most of this module below are a few recommendations developers should consider when leveraging it within in their projects.
+
+### Pre-fetching
+
+The pre-fetching capabilities this Pjax variation provides can drastically improve the speed of rendering. When used correctly pages will load instantaneously between navigations. By default, the pre-fetching features are opt-in and require attribute annotation but you can customize how, when and where pjax should execute a pre-fetch.
+
+### Stimulus
+
+This module was developed as a replacement for [turbo](https://github.com/hotwired/turbo) so leveraging it together with [stimulus.js](https://stimulusjs.org/) is the preferred usage. Stimulus is a very simple framework and when working with SSR projects it helps alleviate the complications developers tend to face. The reason one would choose this project over Turbo comes to performance as this module is much faster and smaller than turbo.
+
+### Minification
+
+By default, all fetched pages are stored in memory so for every request the HTML dom string response is saved to cache. The smaller your HTML pages the more performant the rendering engine will be. In addition to minification it is generally good practice to consider using semantic HTML5 as much as possible so as to negate the amount of markup pages require.
+
+### JavaScript
+
+Inline javascript contained within `<script></script>` tags should be placed in your documents `<head>` element. Script tags will be evaluated and executed on a per-page basis. You can prevent scripts from being re-evaluated by attributing them with `data-pjax-eval="false"` attributes. When script tags contain this attribute they will be executed only once and never again after that. Scripts which reference JavaScript files, ie: `<script src="*"></script>` are evaluated only onceonce and never again unless attributed with a `data-pjax-eval="true"` attribute.
+
+The best possible approach is to initialize JavaScript with `pjax.on('load', () => {})` method event. This way you can be sure it will load between navigations and improve performance.
+
+# Usage
+
+To initialize, call `pjax.connect()` in your bundle preferably before anything else is loaded. By default, the entire `<body>` fragment is replaced upon each navigation. You should define a set of `targets[]` whose inner contents change on a per-page basis for optimal performance and consider leveraging the pre-fetching capabilities.
 
 > The typings provided in this package will describe each option in good detail, below are the defaults and all options are optional.
 
-<!-- prettier-ignore -->
 ```js
-import * as Pjax from "@brixtol/pjax";
+import * as pjax from '@brixtol/pjax';
 
-Pjax.connect({
-  targets: ["body"], // Define fragments to be replaced here!
-  cache: {
-    enable: true,
-    reverse: true,
-    limit: 50
+pjax.connect({
+  targets: ['body'],
+  schema: 'pjax',
+  timeout: 30000,
+  poll: 15,
+  async: true,
+  cache: true,
+  reverse: true,
+  persist: false,
+  limit: 50,
+  preload: null,
+  hover: {
+    trigger: 'attribute',
+    threshold: 250
   },
-  requests: {
-    timeout: 30000,
-    async: true,
-    poll: 150 // You should leave this alone.
+  intersect: {
+    rootMargin: '',
+    threshold: 0
   },
-  prefetch: {
-    preempt: undefined, // Accepts [] or { '/path': [] }
-    mouseover: {
-      enable: true, // You want the speed? leave this as true.
-      trigger: 'attribute',
-      threshold: 100,
-    },
-    intersect: {
-      enable: true,
-      options: {
-        rootMargin: "0px 0px 0px 0px",
-        threshold: 1.0,
-      },
-    },
+  proximity: {
+    distance: 85,
+    throttle: 500,
+    threshold: 250
   },
   progress: {
-    enable: true,
+    minimum: 0.08,
+    easing: 'linear',
+    speed: 200,
+    trickle: true,
     threshold: 500,
-    options: {
-    enable: true,
-    threshold: 850,
-    style: {
-      render: true,
-      colour: 'black',
-      height: '2px'
-    },
-    options: {
-      minimum: 0.1,
-      easing: 'ease',
-      speed: 225,
-      trickle: true,
-      trickleSpeed: 225,
-      showSpinner: false
-    }
+    trickleSpeed: 200
   }
 });
-
 ```
 
-#### Real World
+# Options
 
-Below is a real world example you can use to better understand how this module works so you can apply it into your web application. We are working on providing a live demonstration for more advanced use cases, but the below example should give you a good understanding and help you in understanding how to leverage the module.
+### `targets`
+
+Define page fragment targets which are expected to change on a per-page basis. By default, this pjax module will replace the entire `<body>` fragment. It's best to define specific fragments.
+
+**Type:** `string[]` <br>
+**Default:** `['body']` <br>
+
+### `schema`
+
+By default, attribute identifiers use a `-pjax-` identifier. You can use a custom attribute identifier.
+
+**Type:** `string` <br>
+**Default:** `pjax` <br>
+
+### `timeout`
+
+Request polling limit is used when a request is already in transit. Request completion is checked every 10ms, by default this is set to `30000` which means requests will wait `30s` before being a new request is triggered.
+
+### `poll`
+
+Request polling limit is used when a request is already in transit. Request completion is checked every 10ms, by default this is set to `1000` which means requests will wait `1s` before being a new request is triggered.
+
+**Type:** `number` <br>
+**Default:** `1000` <br>
+
+### `async`
+
+Determine if page requests should be fetched asynchronously or synchronously. Setting this to `false` is not recommended.
+
+**Type:** `boolean` <br>
+**Default:** `true` <br>
+
+### `cache`
+
+Enable or Disable caching. Each page visit request is cached and used in subsequent visits to the same location. Setting this to `false` is discourage as all visits will be fetched over the network and `data-pjax-cache` attribute configs will be ignored.
+
+> If `cache` is disabled then prefetches will be dispatched using HTML5 `<link>` prefetches, else when cache is enabled it uses XHR.
+
+**Type:** `boolean` <br>
+**Default:** `true` <br>
+
+### `persist`
+
+The `persist` option can be used to restore cache into memory after a browser refresh has been triggered. When persisting cache a reference is maintained in session storage.
+
+**Type:** `boolean` <br>
+**Default:** `false` <br>
+
+### `reverse`
+
+Reverse caching. This will execute a pre-emptive fetch of the previous pages in the history stack when no snapshot exists in cache. Snapshots cache is purged when browser refresh occurs (unless `persist` is enabled) so when navigating backwards or pages will need to be re-fetched and this results in minor delays due to the refresh which was triggered.
+
+**Type:** `boolean` <br>
+**Default:** `true` <br>
+
+### `limit`
+
+Cache size limit. This pjax variation limits cache size to `50mb`and once it exceeds that limit, records will be removed starting from the earliest point of known cache entries.
+
+**Type:** `number` <br>
+**Default:** `50` <br>
+
+### `hover`
+
+Hover pre-fetching. You can disable hover pre-fetching by setting this to `false` which will prevent observers from executing and any `data-pjax-hover` attributes will be ignored. To use the default configurations you can set this to `true` or simply omit it.
+
+**Type:** `boolean` or `object` <br>
+**Default:** `{ trigger: 'attribute', threshold: 250 }` <br>
+
+### `hover.trigger`
+
+How hover prefetches should be triggered. By default this option is set to trigger only when `<a>` href link elements are attributed with a `data-pjax-hover` attribute. You can instruct pjax to execute pre-fetching on all `<a>` elements by setting this option to `href`. If you set the trigger to `href` you can annotate links you wish to exclude from prefetch with `data-pjax-hover="false"`.
+
+**Type:** `string` <br>
+**Accepts:** `attribute` or `href` <br>
+**Default:** `attribute` <br>
+
+### `hover.threshold`
+
+Controls the fetch delay threshold. Requests will fire only when the mouse is both within range and the threshold time limit defined here has exceeded.
+
+**Type:** `number` <br>
+**Default:** `250` <br>
+
+### `proximity`
+
+Proximity pre-fetching allow for requests to be dispatched when the cursor is within a proximity range of a href link element. Coupling proximity with mouseover prefetches enable predicative fetching to occur, so a request will trigger before any interaction with a link element happens. To use default behavior, set this to `true` and all `<a>` annotated with a `data-pjax-proximity` attribute will be pre-fetched.
+
+> Annotate any `<a>` links you wish to exclude from pre-fetching using the `data-pjax-proximity="false"`
+
+**Type:** `boolean` or `object` <br>
+**Default:** `{ distance: 75, throttle: 500, threshold: 250 }` <br>
+
+### `proximity.distance`
+
+The distance range the mouse should be within before the prefetch is triggered. You can optionally override this by assigning a number value to the proximity attribute. An href element using `data-pjax-proximity="50"` would inform Pjax to begin fetching when the mouse is within `50px` of the element.
+
+**Type:** `number` <br>
+**Default:** `75` <br>
+
+### `proximity.throttle`
+
+Controls the fetch delay threshold. Requests will fire only when the mouse is both within range and the threshold time limit defined here has exceeded.
+
+**Type:** `number` <br>
+**Default:** `500` <br>
+
+### `proximity.threshold`
+
+Controls the fetch delay threshold. Requests will fire only when the mouse has exceeded the range and the threshold time limit defined here has been exceeded.
+
+**Type:** `number` <br>
+**Default:** `250` <br>
+
+### `intersect`
+
+Intersection pre-fetching. Intersect pre-fetching leverages the [Intersection Observer](https://shorturl.at/drLW9) API to fire requests when elements become visible in viewport. You can disable intersect pre-fetching by setting this to `false`, otherwise you can customize the intersect fetching behavior. To use default behavior, set this to `true` and all elements annotated with with a `data-pjax-intersect` or `data-pjax-intersect="true"` attribute will be pre-fetched. You can annotate elements that contain href links or `<a>` elements directly.
+
+> Annotate any `<a>` links you wish to exclude from intersection pre-fetching using the `data-pjax-intersect="false"`
+
+**Type:** `boolean` or `object` <br>
+**Default:** `{ rootMargin: '0px 0px 0px 0px', throttle: 0 }` <br>
+
+### `intersect.rootMargin`
+
+An offset rectangle applied to the root's href bounding box. The option is passed to the Intersection Observer.
+
+**Type:** `string` <br>
+**Default:** `0px 0px 0px 0px` <br>
+
+### `intersect.throttle`
+
+Throttle limit passed to the intersection observer instance.
+
+**Type:** `number` <br>
+**Default:** `500` <br>
+
+# Real World
+
+Below is a real world example you can use to better understand how this module works and how it can be applied to your web application. We are working on providing a live demonstration for more advanced use cases but the below example should give you a good understanding of how to leverage this module.
 
 <details>
 <summary>
-Example
+<strong>Example</strong>
 </summary>
 
-The first thing we want to do is make a connection with Pjax. In your JavaScript bundle, we need to initialize. Our example web application has 3 pages, the home page, about page and contact page. We are going to instruct pjax to replace the `<nav>` and `<main>` fragments on every visit and then we are going to leverage `data-pjax` attributes to replace an additional fragment when we navigate to the contact page.
+The first thing we want to do is make a connection with Pjax. In your JavaScript bundle we need to initialize it (connect). Our example web application has 3 pages, the **home** page, **about** page and **contact** page. We are going to instruct pjax to replace the `<nav>` and `<main>` fragments on every visit and then we are going to leverage `data-pjax` attributes to replace an additional fragment when we navigate to the contact page.
 
-<br>
-<strong>JavaScript Bundle</strong>
-<br>
+### JavaScript Bundle
 
 <!-- prettier-ignore -->
 ```javascript
-import * as Pjax from "@brixtol/pjax";
+import * as pjax from "@brixtol/pjax";
 
-export default () => {
 
-  Pjax.connect({
-    targets: [
-      "nav",
-      "main"
-    ],
-  })
+pjax.connect({
+  targets: [
+    "nav",
+    "main"
+  ]
+});
 
-}
 
 ```
 
-**Home Page**
+### Home Page
 
-<br>
-Below we have a very basic Home Page with pjax wired up and all `<a>` elements will be intercepted and cached. SSR web application (in most cases) will only ever have a couple of fragments that change between navigation, so keeping to that logic lets begin..
+Below we have a very basic Home Page with pjax wired up. All `<a>` elements will be intercepted and cached as per the default configuration. SSR web applications (in most cases) will only ever have a couple of fragments that change between navigation.
 
 <!-- prettier-ignore -->
 ```html
@@ -158,13 +337,12 @@ Below we have a very basic Home Page with pjax wired up and all `<a>` elements w
         <!-- These links will be pe-fetched on hover -->
         <a
          href="/about"
-         data-pjax-prefetch="hover">About</a>
+         data-pjax-hover>About</a>
 
         <!-- This link will replace the #foo fragment -->
         <a
          href="/contact"
-         data-pjax-replace="(['#foo'])"
-         data-pjax-prefetch="hover">Faq</a>
+         data-pjax-replace="(['#foo'])">Contact</a>
       </nav>
 
     </header>
@@ -185,7 +363,8 @@ Below we have a very basic Home Page with pjax wired up and all `<a>` elements w
     </div>
 
     <footer>
-      This will not be touched during navigation
+      This fragment will not be touched during navigations as it's not
+      defined within targets.
     </footer>
 
   </body>
@@ -193,9 +372,11 @@ Below we have a very basic Home Page with pjax wired up and all `<a>` elements w
 
 ```
 
-**About Page**
+### About Page
+
 <br>
-The about page in our web application would look practically identical to the home page. We instructed pjax to pre-fetch this page upon hover, so navigating to this page will be instantaneous. The about page only has some minor differences, but for the sake of clarity, lets have look:
+
+The about page in our web application would look practically identical to the home page. We instructed pjax to pre-fetch this page upon hover by annotating the `<a>` href link with `data-pjax-hover` attribute. This attribute informs pjax to being fetching the page the moment the user hovers over the `<a>` link which results in the visit being instantaneous. The **about** page only has some minor differences, but for the sake of clarity, lets have look:
 
 <!-- prettier-ignore -->
 ```html
@@ -224,13 +405,12 @@ The about page in our web application would look practically identical to the ho
         <a
          href="/about"
          class="active"
-         data-pjax-prefetch="hover">About</a>
+         data-pjax-hover>About</a>
 
         <!-- This link will replace the #foo fragment -->
         <a
          href="/contact"
-         data-pjax-replace="(['#foo'])"
-         data-pjax-prefetch="hover">Contact</a>
+         data-pjax-replace="(['#foo'])">Contact</a>
       </nav>
 
     </header>
@@ -252,16 +432,17 @@ The about page in our web application would look practically identical to the ho
     </div>
 
     <footer>
-      This will not be touched during navigation
+      This fragment will not be touched during navigations as it's not
+      defined within targets.
     </footer>
 
   </body>
 </html>
 ```
 
-**Contact Page**
-<br>
-The contact page will replace an additional fragment with the id value of `foo` which we instructed via attribute annotation. When the contact page link is hovered the page will be saved to cache, upon visit the `<nav>`, `<main>` and `<div id="foo">` fragments will be replaced.
+### Contact Page
+
+The contact page will replace an additional fragment with the id value of `foo` which we informed upon via attribute annotation. Upon visiting this page the `<nav>`, `<main>` and `<div id="foo">` fragments will be replaced.
 
 <!-- prettier-ignore -->
 ```html
@@ -289,14 +470,13 @@ The contact page will replace an additional fragment with the id value of `foo` 
         <!-- These links will be pe-fetched on hover -->
         <a
          href="/about"
-         data-pjax-prefetch="hover">About</a>
+         class="active"
+         data-pjax-hover>About</a>
 
         <!-- This link will replace the #foo fragment -->
         <a
          href="/contact"
-         class="active"
-         data-pjax-replace="(['#foo'])"
-         data-pjax-prefetch="hover">Contact</a>
+         data-pjax-replace="(['#foo'])">Contact</a>
       </nav>
 
     </header>
@@ -318,7 +498,8 @@ The contact page will replace an additional fragment with the id value of `foo` 
     </div>
 
     <footer>
-      This will not be touched during navigation
+      This fragment will not be touched during navigations as it's not
+      defined within targets.
     </footer>
 
   </body>
@@ -327,83 +508,180 @@ The contact page will replace an additional fragment with the id value of `foo` 
 
 </details>
 
-## Lifecycle Events
+# Lifecycle Events
 
-Lifecycle events are dispatched to the document upon each navigation. You can access contextual information from within `event.detail` or cancel events with `preventDefault()` or by returning boolean `false` to prevent execution from occurring.
+Lifecycle events are dispatched to the document upon each navigation. You can access contextual information in the parameters. You can also cancel events with `preventDefault()` or by returning boolean `false` if you wish to prevent execution from occurring in a certain lifecycle.
+
+The Pjax lifecycle events are dispatched in the following order of execution:
+
+1. **pjax:ready**
+2. **pjax:prefetch**
+3. **pjax:trigger**
+4. **pjax:request**
+5. **pjax:cache**
+6. **pjax:render**
+7. **pjax:hydrate**
+8. **pjax:module**
+9. **pjax:load**
+
+> When a hydrate event is triggered the `hydrate` method will be fired instead of the `render`.
+
+### Events
 
 <!-- prettier-ignore -->
-```javascript
+```typescript
+import type { Events } from '@brixtol/pjax'
+
+// Triggered once after pjax initialization
+pjax.on('connect', (state: IPage) => void)
 
 // Triggered when a prefetch is triggered
-document.addEventListener("pjax:prefetch");
+pjax.on('prefetch', (state: IPage, type: 'hover' | 'intersect' | 'proximity') => void | false)
 
 // Triggered when a mousedown event occurs on a link
-document.addEventListener("pjax:trigger");
+pjax.on('trigger', (event: Event, state: IPage) => void | false)
 
 // Triggered before a page is fetched over XHR
-document.addEventListener("pjax:request");
+pjax.on('request', (state: IPage, type: 'hover' | 'intersect' | 'proximity') => void | false)
 
-// Triggered before a page is cached
-document.addEventListener("pjax:cache");
+// Triggered before a page is fetched over XHR
+pjax.on('cache', (state: IPage, snapshot: Document) => void | false | Document)
+
+// Triggered on before a hydration replacement occurs
+pjax.on('hydrate', (oldTarget: Element, newTarget: Element) => void | false)
 
 // Triggered before a page or fragment is rendered
-document.addEventListener("pjax:render");
-
-// Triggered before a fragment is hydrated
-document.addEventListener("pjax:hydrate"); // { detail: { target: HTMLElement } }
+pjax.on('render', (oldTarget: Element, newTarget: Element) => void | false)
 
 // Triggered after a page has rendered
-document.addEventListener("pjax:load");
+pjax.on('load', (state: IPage) => void)
 
-// Triggered when a JavaScript module is loaded
-document.addEventListener("pjax:module");
 ```
 
-## Methods
+### `connect`
 
-In addition to Lifecycle events, you also have a list of methods available. Methods will allow you some basic programmatic control of the Pjax session.
+The connect event will be triggered after Pjax has connected and fired only once. This is the equivalent of the `DOMContentLoaded` event. Upon connection, Pjax will save the current documents outer HTML to the snapshot cache using `document.documentElement.outerHTML` whereas all additional snapshots are saved after an XHR request completes.
+
+Because the initial snapshot is saved using `document.documentElement.outerHTML` the captured HTML may cause third party scripts which augment the document to fail when a return navigation to the location occurs. You can prevent issues of this nature from occurring by initializing your modules within `connect`.
+
+### `prefetch`
+
+The prefetch event will be triggered for every prefetch request. Prefetch requests are fired for `mouseover`, `intersect` and `proximity` occur. This event will be frequent if you are leveraging any of these capabilities.
+
+### `trigger`
+
+The trigger event will be triggered when a `mousedown` event has occurred on a Pjax enabled `href`. This is the equivalent of a `click` and allows you to hook into the dispatch. Use this event to teardown any third party scripts.
+
+### `request`
+
+The request event will be triggered before an XHR request begins and a page is fetched. This event will be fired for `prefetch`, `hydrate` and `trigger` actions. You can determine the trigger action for the request using the `type` property passed in the `event.detail` parameter.
+
+### `cache`
+
+The cache event will be triggered immediately after a request has finished and before the snapshot is saved. You can determine the trigger action for the request using the `type` property passed in the `event.detail` parameter.
+
+### `render`
+
+The render event will be triggered before a page or fragment is rendered (replaced) in the dom. For every `target` you've defined this event fires. You can determine which elements are being replaced via the `target` and `newTarget` properties passed in the `event.detail` parameter. The `target` property represents the current element that will be replaced and the `newTarget` element represents the new target.
+
+### `load`
+
+The load event is the final lifecycle event to be triggered. Use this event to re-initialize any third party scripts. The load event will only execute after navigation has concluded.
+
+# Methods
+
+In addition to Lifecycle events, you also have a list of methods available. Methods will allow you some basic programmatic control of the Pjax session occurring, provides access to the cache store and various other operational utilities.
 
 ```typescript
+import * as pjax from '@brixtol/pjax'
 
 // Check to see if Pjax is supported by the browser
-Pjax.supported: boolean
+pjax.supported: boolean
 
 // Connects Pjax, called upon initialization
-Pjax.connect(options?): void
+pjax.connect(options?): void
 
-// Execute a programmatic visit
-Pjax.visit(url?, options?): Promise<Page{}>
+// Returns the current page state reference
+pjax.current(): IPage
+
+// Trigger hydration, optionally pass search params
+pjax.hydrate(options: { url?: string, target: Elements[] }): Promise<Page{}>
+
+// Execute a programmatic pjax visit
+pjax.visit(url?, options?): Promise<Page{}>
 
 // Access the cache, pass in href for specific record
-Pjax.cache(url?): Page{}
+pjax.cache(url?): Page{}
 
-// Clears the cache, pass in href to clear specific record
-Pjax.clear(url?): void
+// Returns a snapshot
+pjax.snapshot(url?, options?): Document | { [id: string]: string }
+
+// Clears the cache, pass in url to clear specific record
+pjax.clear(url?): void
 
 // Returns a UUID string via nanoid
-Pjax.uuid(size = 16): string
+pjax.uuid(size = 16): string
 
 // Reloads the current page
-Pjax.reload(): Page{}
+pjax.reload(): Page{}
 
-// Disconnects Pjax
-Pjax.disconnect(): void
+// Disconnects Pjax, ie: destroy the instance
+pjax.disconnect(): void
 
 ```
 
-## Attributes
+# Attributes
 
-Link elements can be annotated with `data-pjax` attributes. You can control how pages are rendered by passing the below attributes on `<a>` elements.
+Elements can be annotated with `data-pjax-*` attributes which you can leverage to customize how visits are rendered between navigations. By default, attributes are using a `-pjax-` schema but you can optionally provide a custom schema upon `connect` via the `schema` option.
 
-#### data-pjax-eval
+- [data-pjax-eval](#data-pjax-eval)
+- [data-pjax-disable](#data-pjax-disable)
+- [data-pjax-hydrate](#data-pjax-hydrate)
+- [data-pjax-replace](#data-pjax-replace)
+- [data-pjax-prepend](#data-pjax-prepend)
+- [data-pjax-append](#data-pjax-append)
+- [data-pjax-hover](#data-pjax-hover)
+- [data-pjax-threshold](#data-pjax-threshold)
+- [data-pjax-proximity](#data-pjax-proximity)
+- [data-pjax-position](#data-pjax-position)
+- [data-pjax-cache](#data-pjax-cache)
+- [data-pjax-history](#data-pjax-history)
 
-Used on resources contained within `<head>` fragment like styles and scripts. Use this attribute if you want pjax the evaluate scripts and/or stylesheets. This option accepts a `false` value so you can define which scripts to execute on each navigation. By default, pjax will run and evaluate all `<script>` tags it detects for every page visit but will not re-evaluate `<script src="*"></script>` tags.
+## data-pjax-eval
 
-> If a script tag is detected on pjax navigation and is using `data-pjax-eval="false"` it will execute only once upon the first visit but never again after that.
+Used on resources contained within the `<head>` fragment like styles, scripts or meta tags. Use this attribute if you want pjax to evaluate scripts and/or stylesheets. This option accepts a `false` value so you can define which scripts to execute per navigation. By default, pjax will run and evaluate all `<script>` tags it detects for every page visit but will not re-evaluate `<script src="*"></script>` tags.
+
+> When a `<script>` tag is detected on a pjax navigation and annotated with `data-pjax-eval="false"` then execution will be triggered only once but never again after that.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
+</summary>
+
+The `data-pjax-eval` attribute can be annotated on any of the below HTML tags:
+
+- `<meta>`
+- `<link>`
+- `<style>`
+- `<script>`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `boolean` type. Passing the `true` value is optional as `data-pjax-eval` infers truthy.
+
+- `true`
+- `false`
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
 </summary>
 
 ```html
@@ -411,7 +689,7 @@ Example
   console.log('I will run on every navigation');
 </script>
 
-<!-- script will also run once if detected on pjax navigation -->
+<!-- script will only run once when between pjax visits -->
 <script data-pjax-eval="false">
   console.log('I will run on initialization only!');
 </script>
@@ -419,13 +697,35 @@ Example
 
 </details>
 
-#### data-pjax-disable
+## data-pjax-disable
 
-Place on `href` elements you don't want pjax navigation to be executed. When a link element is annotated with `data-pjax-disable` a normal page navigation will be executed and cache will be cleared.
+Use on `<a>` elements to disable pjax navigation. When a link element is annotated with `data-pjax-disable` a normal page navigation will be executed and cache will be cleared. You can optionally restore the cache using the `data-pjax-cache="restore"` attribute when navigating back to a pjax enabled url.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
+</summary>
+
+The `data-pjax-disable` attribute can be used on the following tags:
+
+- `<a>`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `truthy` type. Passing the `true` value is optional as `data-pjax-disable` infers truthy.
+
+- `true`
+
+</details>
+
+<details>
+<summary>
+<strong>Examples</strong>
 </summary>
 
 Clicking this link will clear cache and a normal page navigation will be executed.
@@ -434,18 +734,44 @@ Clicking this link will clear cache and a normal page navigation will be execute
 <a href="*" data-pjax-disable></a>
 ```
 
+Clicking this link will execute a normal page navigation but will inform pjax to save the current cache and restore it upon the next pjax enabled visit. See [data-pjax-cache](#data-pjax-cache) for more information.
+
+```html
+<a href="*" data-pjax-cache="restore" data-pjax-disable></a>
+```
+
 </details>
 
-#### data-pjax-track
+## data-pjax-track
 
-Place on elements to track on a per-page basis that might otherwise not be contained within target elements.
+Place on elements to track on a per-page basis that might otherwise not be contained within target elements. This methods will append nodes to the document `<body>` and placement is not certain. This is helpful when you need to reference an `svg` sprite of template or some sort.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
 </summary>
 
-Lets assume you are navigating from `Page 1` to `Page 2` and `#main` is your defined target. When you navigate from `Page 1` only the `#main` target will be replaced and any other dom elements will be skipped which are not contained within `#main`. Elements located outside of target/s that do no exist on previous or future pages will be added.
+The `data-pjax-track` attribute can be annotated on any HTML contained within `<body>` but cannot be applied to `<a>` href links.
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `truthy` type. Passing the `true` value is optional as `data-pjax-track` infers truthy.
+
+- `true`
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
+</summary>
+
+Lets assume you are navigating from `Page 1` to `Page 2` and `#main` is your defined target. When you navigate from `Page 1` only the `#main` target will be replaced and any other dom elements will be skipped that are not contained within the `#main` HTML tag. When annotating `data-pjax-track` to elements located outside of target/s which will be added and persisted on all future navigations.
 
 **Page 1**
 
@@ -474,77 +800,157 @@ Lets assume you are navigating from `Page 1` to `Page 2` and `#main` is your def
 
 <!-- This element will be appended to the dom -->
 <div data-pjax-track>
-  I am outside of target and will be tracked if Pjax was initialized on Page 1
+  I am outside of target and will be tracked if pjax was initialized on Page 1
 </div>
 
 <!-- This element will not be appended to the dom -->
 <div>I will not be tracked unless Pjax was initialized on Page 2</div>
 ```
 
-> If pjax was initialized on `Page 2` then Pjax would have knowledge of its existence before navigation. In such a situation, pjax will mark the tracked element internally.
+> If navigation started on `Page 2` then Pjax will have knowledge of the tracked elements existence before navigating away. In such a situation the tracked element is marked internally and the handling will be identical.
 
 </details>
 
-#### data-pjax-hydrate
+## data-pjax-hydrate
 
-Executes a replacement of the defined elements. Hydrate is different from `replace`, `append` and `prepend` methods in the sense that the those are combined with your defined `targets`. When calling Hydrate, it will run precedence over `targets` and for the visit it will replace only the element/s provided.
+Executes a controlled replacement of the defined elements. You should perform hydration when server side logic is required to adjust or apply changes to a visitors session as it will allow your application to seamlessly adapt and progressively align the UI without having to trigger a full-page reload. Hydration incurs side effects and the pjax session will be augmented, see below:
 
-- `(['target'])`
-- `(['target' , 'target'])`
+1. Only current and previous page cache is aligned (updated), all other existing records are purged.
+2. You cannot restore purged cache. Any `data-pjax-cache="restore"` methods will be ignored.
+3. Hydration is skipped when target location pathname does not match trigger location pathname.
+4. History stack will not be touched, the visit is executed in the background.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
 </summary>
+
+The `data-pjax-hydrate` attribute can be used on the following tags:
+
+- `<a>`
+- `<button>`
+- `<form>`
+- `<input>`
+
+> Triggering via an annotated `<button>` element will execute hydration on current url.
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `string[]` type and expects a list of valid element selectors to be provided.
+
+- `(['.foo'])`
+- `(['.foo' , '#bar', '[data-baz]', '[data-qux=foo]'])`
+
+> The surrounding parenthesis `()` characters are optional and can be omitted.
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
+</summary>
+
+Lets assume we informed pjax to trigger replacements on the `#menu`, `#main` and `#note` between navigations upon connection, for example:
+
+```js
+pjax.connect({ targets: ['#menu', '#main', '#note'] });
+```
+
+When performing a navigation visit the target elements `#menu`, `#main` and `#note` would be replaced (as expected) but when a trigger tag element is using a `data-pjax-hydrate` attribute then pjax will only preform replacements on the elements defined within the `data-pjax-hydrate` annotation, for example:
 
 <!-- prettier-ignore -->
 ```html
 
-<a
- href="*"
- data-pjax-hydrate="(['.price', '.cart-count'])">
- Link
-</a>
+<!-- This node will not be replaced during hydration visit only on navigation visit -->
+<nav id="menu">
 
-<div>
-  The next navigation will replace all elements with class "price"
-  and the elements with class "cart-count" - If you have defined
-  the element "#main" as a "target" in your connection, a replacement
-  will not be made on that element, instead the elements defined in
-  "data-pjax-hydrate" will become the target/s.
-</div>
+  <!-- Pressing this link will trigger a navigation visit  -->
+  <a
+   href="/home">Replaces the #menu, #main and #note elements</a>
+
+  <!-- Pressing this link triggers hydration and replaces all .price nodes -->
+  <a
+   href="/products?currency=SEK"
+   data-pjax-hydrate="(['.price'])">Perform server side action</a>
+
+</nav>
+
+<!-- This node will not be replaced during hydration visit only on navigation visit -->
+<section id="note">
+  The next navigation will replace all elements using class "price"
+  and "cart-count" - If you have defined the element "#main" as a "target"
+  in your connection, a replacement will not be made on that element,
+  instead only the elements defined in "data-pjax-hydrate" are replaced.
+</section>
 
 
+<!-- This node will be replaced on hydration -->
 <span class="cart-count">1</span>
+
+<!-- This node will be replaced on hydration -->
 <span class="price">€ 450</span>
 
 <div id="main">
   <img src="*">
   <ul>
     <li>Great Product</li>
+    <!-- This node will be replaced on hydration -->
     <li class="price">€ 100</li>
     <li>Awesome Product</li>
+    <!-- This node will be replaced on hydration -->
     <li class="price">€ 200</li>
     <li>Cool Product</li>
+    <!-- This node will be replaced on hydration -->
     <li class="price">€ 300</li>
   </ul>
 </div>
 
+<!-- Pressing this triggers hydration and replaces the .cart-count node -->
+<button data-pjax-hydrate="(['.cart-count'])">
+  Add to cart
+</button>
 
 ```
 
 </details>
 
-#### data-pjax-replace
+## data-pjax-replace
 
-Executes a replacement of defined targets, where each target defined in the array is replaced.
-
-- `(['target'])`
-- `(['target' , 'target'])`
+Executes a replacement of defined targets, where each target defined in the array is replaced in the navigation visit. Targets defined in `pjax.connect()` will be merged with those defined on this attribute.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
+</summary>
+
+The `data-pjax-replace` attribute can be used on the following tags:
+
+- `<a>`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `string[]` type and expects a list of valid element selectors to be provided.
+
+- `(['.foo'])`
+- `(['.foo' , '.bar', '#baz'])`
+
+> The surrounding parenthesis `()` characters are optional and can be omitted.
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
 </summary>
 
 <!-- prettier-ignore -->
@@ -568,16 +974,67 @@ Example
 
 </details>
 
-#### data-pjax-prepend
+## data-pjax-prepend
 
-Executes a prepend visit, where `[0]` will prepend itself to `[1]` defined in that value. Multiple prepend actions can be defined. Each prepend action is recorded are marked.
-
-- `(['target' , 'target'])`
-- `(['target' , 'target'], ['target' , 'target'])`
+Executes a prepend replacement on visit, where the array list values are used as targets. Index `[0]` will prepend itself to the index `[1]` value. Multiple prepend actions can be defined. Each prepend action is recorded are marked after execution.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
+</summary>
+
+The `data-pjax-prepend` attribute can be used on the following tags:
+
+- `<a>`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `string[][]` type and expects a list of valid element selectors to be provided.
+
+- `(['.foo', '.bar'])`
+- `(['.foo' , '.bar'], ['#baz', '#qux'])`
+
+> The surrounding parenthesis `()` characters are optional and can be omitted.
+
+</details>
+
+## data-pjax-append
+
+Executes a append replacement on visit, where the array list values are used as targets. Index `[0]` will append itself to the index `[1]` value. Multiple append actions can be defined. Each append action is recorded are marked after execution.
+
+<details>
+<summary>
+<strong>Tags</strong>
+</summary>
+
+The `data-pjax-append` attribute can be used on the following tags:
+
+- `<a>`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `string[][]` type and expects a list of valid element selectors to be provided.
+
+- `(['.foo', '.bar'])`
+- `(['.foo' , '.bar'], ['#baz', '#qux'])`
+
+> The surrounding parenthesis `()` characters are optional and can be omitted.
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
 </summary>
 
 **PAGE 1**
@@ -627,161 +1084,450 @@ Example
 
 </details>
 
-#### data-pjax-prefetch
+## data-pjax-hover
 
-Prefetch option to execute. Accepts either `intersect` or `hover` value. When `intersect` is provided a request will be dispatched and cached upon visibility via Intersection Observer, whereas `hover` will dispatch a request upon a pointerover (mouseover) event.
+Performs a prefetch of the `href` url upon mouse enter (hover). By default, hover pre-fetching is enabled but expects attribute annotation on links. You can have pjax execute pre-fetching on all `<a>` links by setting the `trigger` option to `href` in `pjax.connect()`. If you have set `trigger` to `href`then you do not need to define the attribute on links, unless you wish to skip executing the pre-fetch for occurring, in such a case your annotate the href element with a `false` hover attribute, eg: `<a data-pjax-hover="false">`.
 
-> On mobile devices the `hover` value will execute on a `touchstart` event
+If you set hover pre-fetching to `false` in your `pjax.connect()` settings then annotations will be ignored and hover pre-fetching will be disabled.
+
+> On mobile devices the the prefetch will execute on the `touchstart` event
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
+</summary>
+
+The `data-pjax-hover` attribute can be used on the following tags:
+
+- `<a>`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `boolean` type. Passing the `true` value is optional as `data-pjax-hover` infers truthy.
+
+- `true`
+- `false`
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
 </summary>
 
 ```html
 <!-- This link will be prefetch when it is hovered -->
-<a data-pjax-prefetch="hover" href="*"></a>
+<a href="*" data-pjax-hover></a>
 
-<!-- This link will be prefetch when it is in viewport -->
-<a data-pjax-prefetch="intersect" href="*"></a>
+<!-- This link will be excluded from prefetch when hovered -->
+
+<a href="*" data-pjax-hover="false"></a>
 ```
 
 </details>
 
-#### data-pjax-threshold
+## data-pjax-threshold
 
-Set the threshold delay timeout for hover prefetches. By default, this will be set to `100` or whatever preset configuration was defined in `Pjax.connect()` but you can override those settings by annotating the link with this attribute.
+By default, this will be set to `100` or whatever preset configuration was defined in `pjax.connect()` but you can override those settings by annotating the link with this attribute. The `data-pjax-threshold` attribute should be used together attributes that accept threshold control.
 
 <details>
 <summary>
-Example
+<strong>Attributes</strong>
 </summary>
 
+The `data-pjax-threshold` attribute can be used together with the following attributes:
+
+- `data-pjax-hover`
+- `data-pjax-intersect`
+- `data-pjax-proximity`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute either a `number` type. You can optionally pass a key reference to target specific attributes when an element is using multiple attribute annotations. Threshold accepts number with decimals, negative numbers will be ignored.
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
+</summary>
+
+<!-- prettier-ignore -->
 ```html
-<!-- hover prefetch will begin according to the connect preset -->
-<!-- prefetch will not be initialized if a click was detected before threshold -->
-<a data-pjax-prefetch="hover" href="*"></a>
+<!-- hover prefetch will begin after 500ms on mouseover -->
+<a
+ href="*"
+ data-pjax-threshold="500"
+ data-pjax-hover>Link</a>
 
-<!-- prefetch will begin 500ms after hover but will cancel if mouse existed before threshold -->
-<a data-pjax-prefetch="hover" data-pjax-threshold="500" href="*"></a>
+<!-- prefetch will begin after 500ms on mouseover -->
+<!-- prefetch will begin after 1s on proximity -->
+<a
+ href="*"
+ data-pjax-threshold="mouseover:500 proximity:1000"
+ data-pjax-hover
+ data-pjax-proximity>Link</a>
 
-<!-- Prefetch will begin once this link becomes visible in viewport -->
-<a data-pjax-prefetch="intersect" href="*"></a>
+<!-- prefetch will begin after 500ms on mouseover and proximity -->
+<a
+ href="*"
+ data-pjax-threshold="500"
+ data-pjax-hover
+ data-pjax-proximity>Link</a>
+
+<!-- Prefetch will begin 1s after this link becomes visible in viewport -->
+<div data-pjax-threshold="1000" data-pjax-intersect>
+
+  <!-- Prefetch will begin after 1s as per the threshold defined on the parent -->
+  <a
+   href="*">link</a>
+
+  <!-- This threshold will be used and fetch will begin after 100ms instead of 1s -->
+  <a
+   href="*"
+   data-pjax-threshold="100">link</a>
+
+  <!-- Prefetch will be disabled -->
+  <a
+   href="*"
+   data-pjax-intersect="false">link</a>
+
+  <!-- Prefetch will be disabled on intersection by trigger on mouseover after 300ms -->
+  <a
+   href="*"
+   data-pjax-intersect="false"
+   data-pjax-threshold="300"
+   data-pjax-hover>link</a>
+
+</div>
+
 ```
 
 </details>
 
-#### data-pjax-position
+## data-pjax-proximity
 
-Scroll position of the next navigation. Space separated expression with colon separated prop and value.
+Triggers a proximity fetch when the cursor is within range of an `<a>` element. Optionally accepts a `number` value which overrides the `distance` preset configuration.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
 </summary>
 
+The `data-pjax-proximity` attribute can be annotated on any HTML contained within `<body>`.
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `number` type or a boolean `false`
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
+</summary>
+
+<!-- prettier-ignore -->
+```html
+<!-- This activates proximity based pre-fetch and uses the connection present defaults -->
+<a
+ href="*"
+ data-pjax-proximity></a>
+
+<!-- This url will begin fetching when the mouse is within 100px of the element -->
+<a
+ href="*"
+ data-pjax-proximity="100"></a>
+
+<!-- All <a href="*"> elements will be triggered via proximity -->
+<div data-pjax-proximity>
+
+ <!-- These urls will pre-fetch and uses the connection present defaults -->
+ <a href="*" ></a>
+ <a href="*" ></a>
+
+</div>
+
+```
+
+</details>
+
+## data-pjax-position
+
+Sets the scroll position of the next navigation. This is a space separated expression with colon separated prop and value.
+
+<details>
+<summary>
+<strong>Tags</strong>
+</summary>
+
+The `data-pjax-threshold` attribute can be used on the following tags:
+
+- `<a>`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `number` type. The value requires a key definition to be defined to inform upon position.
+
+- `y:0`
+- `x:0`
+- `y:0 x:0`
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
+</summary>
+
+<!-- prettier-ignore -->
 ```html
 <!-- This next navigation will load at 1000px from top of page  -->
+<a
+ href="*"
+ data-pjax-position="y:1000 x:0"></a>
 
-<a data-pjax-position="y:1000 x:0" href="*"></a>
+<!-- This next navigation will load at 250px from top of page  -->
+<a
+ href="*"
+ data-pjax-position="y:250"></a>
+
 ```
 
 </details>
 
-#### data-pjax-cache
+## data-pjax-cache
 
-Controls the caching engine for the link navigation. Accepts `false`, `reset` or `clear` value. Passing in `false` will execute a pjax visit that will not be saved to cache and if the link exists in cache it will be removed. When passing `reset` the cache record will be removed, a new pjax visit will be executed and its result saved to cache. The `clear` option will clear the entire cache.
+Controls the caching engine of each pjax navigation. When using `data-pjax-cache` together with prefetch attributes like `data-pjax-hover` the action is respected.
+
+### false
+
+Passing a `false` value will execute a pjax visit that will not be saved to cache and if the link exists in cache it will be removed.
+
+### reset
+
+Passing a `reset` value will remove the cache reference existing at the location of the trigger. A new pjax visit will be executed and the response will saved to cache, replacing the previous record.
+
+### clear
+
+Passing a `clear` value will purge the entire cache store and all records will be removed.
+
+### restore
+
+Passing a `restore` value will save the current cache to session storage which allows the store to be maintained during page a refresh. The cache will exist in session storage and be restored to memory when another pjax visit is triggered. The restore method can be used together with `data-pjax-disable` or when navigating to an external webpage. If the tab or browser is closed then session storage is purged.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
 </summary>
 
+The `data-pjax-cache` attribute can be used on the following tags:
+
+- `<a>`
+- `<button>`
+
+> When annotating `<button>` elements the action is triggered on current location.
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `string` type and expects on the following values.
+
+- `false`
+- `reset`
+- `clear`
+- `restore`
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
+</summary>
+
+<!-- prettier-ignore -->
 ```html
-<a data-pjax-cache="false" href="*"></a>
+
+<!-- Disables cache and remove any records that might exists at '/a' -->
+<a
+ href="/a"
+ data-pjax-cache="false"></a>
+
+<!-- Resets the cache of '/b' -->
+<a
+ href="/b"
+ data-pjax-cache="reset"></a>
+
+<!-- Purges all cache references -->
+<a
+ href="/c"
+ data-pjax-cache="clear"></a>
+
+<!-- Saves cache to session storage and restores it on the next pjax visit -->
+<a
+ href="/d"
+ data-pjax-cache="restore"
+ data-pjax-disable></a>
 ```
 
 </details>
 
-#### data-pjax-history
+## data-pjax-history
 
-Controls the history pushstate for the navigation. Accepts `false`, `replace` or `push` value. Passing in `false`will prevent this navigation from being added to history. Passing in `replace` or `push` will execute its respective value to pushstate to history.
+Controls the history pushstate for the navigation. Accepts `false`, `replace` or `push` value. Passing in `false` will prevent the navigation from being added to history. Passing in `replace` or `push` will execute its respective value to pushstate to history.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
+</summary>
+
+The `data-pjax-history` attribute can be used on the following tags:
+
+- `<a>`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute is a `string` type and expects on the following values.
+
+- `false`
+- `replace`
+- `push`
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
 </summary>
 
 ```html
 <!-- the navigation not be pushed to history -->
-<a data-pjax-history="false" href="*"></a>
+<a href="*" data-pjax-history="false"></a>
 ```
 
 </details>
 
-#### data-pjax-progress
+## data-pjax-progress
 
 Controls the progress bar delay. By default, progress will use the threshold defined in configuration presets defined upon connection, else it will use the value defined on link attributes. Passing in a value of `false` will disable the progress from showing.
 
 <details>
 <summary>
-Example
+<strong>Tags</strong>
+</summary>
+
+The `data-pjax-progress` attribute can be used on the following tags:
+
+- `<a>`
+- `<button>`
+- `<form>`
+- `<input>`
+
+</details>
+
+<details>
+<summary>
+<strong>Values</strong>
+</summary>
+
+This attribute can be `number` or boolean `false` type. You must provide a number greater than or equal to 100, negative numbers will be ignored.
+
+</details>
+
+<details>
+<summary>
+<strong>Example</strong>
 </summary>
 
 ```html
 <!-- Progress bar will be displayed if the request exceeds 500ms -->
-<a data-pjax-progress="500" href="*"></a>
+<a href="*" data-pjax-progress="500"></a>
+
+<!-- Progress bar will not be displayed -->
+<a href="*" data-pjax-progress="false"></a>
 ```
 
 </details>
 
-## State
+# State
 
-Each page visited has a state value. Page state is immutable and created for every unique url `/path` or `/pathname?query=param` value that has been encountered throughout the pjax session. The state value of each page is added to its pertaining History stack record and will referenced on subsequent visits. This approach drastically improves TTFB.
+Each page visited has a state value. Page state is immutable and created for every unique url `/path` or `/pathname?query=param` location that has been encountered throughout the pjax session. The state value of each page is added to its pertaining History stack record and it will be referenced on subsequent visits. This approach drastically improves TTFB and provides a specific store for every page.
 
-> Navigation sessions begin once a Pjax connection has been established and ends when a browser refresh is executed or url origin changes.
+> Navigation sessions begin once a Pjax connection has been established and ends when a browser refresh is executed or url origin changes. You can maintain and restore sessions using cache methods.
 
-#### Read
+### Read
 
-You can access a readonly copy of page via the `event.details.state` property passed in certain dispatched lifecycle events or via the `Pjax.cache()` method. The caching engine used by this Pjax variation acts as mediator when a session begins. When you access page state via the `Pjax.cache()` method you are given a bridge to the object that holds all active session cache data.
+You can access page state via the `event.details.state` property provided in certain dispatched lifecycle events or via the `pjax.cache()` method. The caching engine used by this Pjax variation acts as mediator when a session begins, when you access page state via the `pjax.cache()` method you are given a bridge to the object that holds all active sessions of the cache store kept in browser memory.
 
-#### Write
+### Write
 
-State modifications are carried out via link attributes, when executing a programmatic visit using the `Pjax.visit()` method or from within dispatched events. When using the `Pjax.visit()` method you can pass state modification via the `options` parameter and will be merged before the visit begins. Though this method will only allow you to modify the next navigation you should avoid modifying state outside of the available methods and instead treat it as readonly.
+State modifications can be carried out using attributes, method or from within dispatched events. When using the `Pjax.visit()` method you can apply state modification to the `options` parameter and changes will be merged before a visit begins. You should avoid modifying state outside of the available methods, treat state as **read only** and architect your application to prevent direct augmentation.
+
+### Model
 
 ```typescript
 interface IPage {
   /**
+   * The URL cache key, this is the pathname (excludes #hashes)
+   */
+  key: string;
+
+  /**
    * The list of fragment target element selectors defined upon connection.
-   * Targets are inherited from `Pjax.connect()` presets.
+   * Targets are inherited from `pjax.connect()` presets.
    *
    * > You cannot override the targets but you can skip replacements using
    * `hydrate` to replace specific fragments.
    *
    * @example
+   *
    * ['#main', '.header', '[data-attr]', 'header']
    */
-  readonly targets?: string[];
-
-  /**
-   * The URL cache key and current url path
-   */
-  url?: string;
-
-  /**
-   * UUID reference to the page snapshot HTML Document element
-   */
-  snapshot?: string;
+  replace: string[];
 
   /**
    * The Document title
    */
-  title?: string;
+  title: string;
 
   /**
    * Should this fetch be pushed to history
    */
-  history?: boolean;
+  history: boolean;
+
+  /**
+   * UUID reference to the page snapshot HTML Document element
+   */
+  snapshot: string;
 
   /**
    * List of fragments to replace. When `hydrate` is used,
@@ -789,18 +1535,10 @@ interface IPage {
    * on the triggered page fragments.
    *
    * @example
-   * ['#main', '.header', '[data-attr]', 'header']
-   */
-  hyrdate?: null | string[];
-
-  /**
-   * List of fragment element selectors. Accepts any valid
-   * `querySelector()` string.
    *
-   * @example
    * ['#main', '.header', '[data-attr]', 'header']
    */
-  replace?: null | string[];
+  hyrdate?: string[];
 
   /**
    * List of fragments to append from and to. Accepts multiple.
@@ -809,7 +1547,7 @@ interface IPage {
    *
    * [['#main', '.header'], ['[data-attr]', 'header']]
    */
-  append?: null | Array<[from: string, to: string]>;
+  append?: Array<[from: string, to: string]>;
 
   /**
    * List of fragments to be prepend from and to. Accepts multiple.
@@ -818,14 +1556,14 @@ interface IPage {
    *
    * [['#main', '.header'], ['[data-attr]', 'header']]
    */
-  prepend?: null | Array<[from: string, to: string]>;
+  prepend?: Array<[from: string, to: string]>;
 
   /**
    * Controls the caching engine for the link navigation.
    * Option is enabled when `cache` preset config is `true`.
    * Each pjax link can set a different cache option.
    */
-  cache?: boolean | 'reset' | 'clear';
+  cache: boolean | 'reset' | 'clear' | 'restore';
 
   /**
    * Define mouseover timeout from which fetching will begin
@@ -833,7 +1571,7 @@ interface IPage {
    *
    * @default 100
    */
-  threshold?: number;
+  threshold: number;
 
   /**
    * Define proximity prefetch distance from which fetching will
@@ -841,14 +1579,14 @@ interface IPage {
    *
    * @default 0
    */
-  proximity?: number;
+  proximity: number;
 
   /**
    * Progress bar threshold delay
    *
    * @default 350
    */
-  progress?: boolean | number;
+  progress: boolean | number;
 
   /**
    * Scroll position of the next navigation.
@@ -858,7 +1596,7 @@ interface IPage {
    *
    * `y` - Equivalent to `scrollTop` in pixels
    */
-  position?: {
+  position: {
     y: number;
     x: number;
   };
@@ -866,21 +1604,21 @@ interface IPage {
   /**
    * Location URL
    */
-  location?: {
+  location: {
     /**
      * The URL origin name
      *
      * @example
      * 'https://website.com'
      */
-    origin?: string;
+    origin: string;
     /**
      * The URL Hostname
      *
      * @example
      * 'website.com'
      */
-    hostname?: string;
+    hostname: string;
 
     /**
      * The URL Pathname
@@ -888,7 +1626,7 @@ interface IPage {
      * @example
      * '/pathname' OR '/pathname/foo/bar'
      */
-    pathname?: string;
+    pathname: string;
 
     /**
      * The URL search params
@@ -896,7 +1634,7 @@ interface IPage {
      * @example
      * '?param=foo&bar=baz'
      */
-    search?: string;
+    search: string;
 
     /**
      * The URL Hash
@@ -904,7 +1642,7 @@ interface IPage {
      * @example
      * '#foo'
      */
-    hash?: string;
+    hash: string;
 
     /**
      * The previous page path URL, this is also the cache identifier.
@@ -914,16 +1652,42 @@ interface IPage {
      * @example
      * '/pathname' OR '/pathname?foo=bar'
      */
-    lastpath?: string;
+    lastpath: string;
   };
 }
 ```
 
-## Contributing
+# How it works?
+
+This pjax variation is leveraging modern browser capabilities. What makes this pjax variant faster than others is how the pages are fetched and the caching approach it employs.
+
+### Fetching
+
+Pages are fetches using XHR opposed to the Fetch API as we are dealing with HTML requests there is no benefit of using Fetch over XHR.
+
+### Pre-fetching
+
+TODO
+
+### Rendering
+
+1. An XHR request can begin on mousedown, mouseover, element intersection or via cursor proximity.
+2. The response DOM string of fetched pages is stored in memory, so page requests are only ever executed once.
+3. Stored pages (snapshots) are re-used when returning visits to cached (stored) locations occur.
+4. The DOM Parser API is used in the rendering cycle, only specific elements (targets) are replaced.
+5. The state model of the History API is used maintain page specific configuration references.
+
+# Contributing
 
 This module is written in TypeScript. Production bundles exports to ES2015. This project has been open sourced from within a predominantly closed source mono/multi repo. We will update it according to what we need. Feel free to suggest features or report bugs and PR's are welcome!
 
-## Acknowledgements
+### Development
+
+The project is functional in its architecture, there are no classes, just functions. The [observers](https://github.com/BRIXTOL/pjax/blob/master/src/observers) directory contains the various fetch and pre-fetch logics. Objects avoid the prototype and `Object.create(null)` is the preferred approach.
+
+The project is fairly easy to understand, there are no complexities and over-engineering. The Pjax method is simple, you fetch pages over the wire and replace elements in the rendering cycle. This module follows this pattern but includes additional extras to help improve the rendering times.
+
+# Acknowledgements
 
 This module combines concepts originally introduced by other awesome Open Source projects:
 
@@ -934,9 +1698,9 @@ This module combines concepts originally introduced by other awesome Open Source
 - [Turbo](https://github.com/hotwired/turbo)
 - [Turbolinks](https://github.com/turbolinks/turbolinks)
 
-## License
+# License
 
-Licensed under [MIT](#LICENCE)
+Licensed under [MIT](#LICENSE)
 
 ---
 

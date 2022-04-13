@@ -1,6 +1,91 @@
 # CHANGELOG
 
-### 21/12/2012 | v0.3.0-beta.1
+### 09/04/2022 | v1.0.0-beta.1
+
+This module has now moved to an major release beta candidate. Multiple breaking changes have been applied in this version. Several refactors and improvement and overall maturity. Let's get into it.
+
+#### Smaller Size
+
+This release is 7.9kb (gzipped). Previous versions exceeded 10kb so the module is now considerably smaller and faster.
+
+#### New setup configuration
+
+Previous version were using a rather complicated setup configuration model. This is breaking change and application need to update to the new config model.
+
+```js
+import * as pjax from '@brixtol/pjax';
+
+pjax.connect({
+  targets: ['body'],
+  timeout: 30000,
+  poll: 15,
+  async: true,
+  cache: true,
+  reverse: true,
+  limit: 25,
+  proximity: {
+    bounding: 0,
+    threshold: 100
+  },
+  hover: {
+    trigger: 'href',
+    threshold: 100
+  },
+  intersect: {
+    rootMargin: '',
+    threshold: ''
+  },
+  progress: {
+    minimum: 0.08,
+    easing: 'linear',
+    speed: 200,
+    trickle: true,
+    threshold: 500,
+    trickleSpeed: 200
+  }
+});
+```
+
+#### Improved scroll tracking
+
+The way in which scroll position was tracked between navigations in previous versions was a tad costly on performance. This update improves upon this resource heavy aspect and scrolling is recognizably more snappier as a result.
+
+#### Pub/Sub Event Dispatching
+
+In previous versions the module allowed methods to be hooked into via `document` event listeners. This approach is replaced with a emitter pub/sub event dispatching. This allows users to leverage the lifecycle hooks more efficiently. The `pjax.on()` methods are the new approach to lifecycle hooks.
+
+**Old Way**
+
+```js
+// Old way
+document.addEventListener('pjax:load', ({ detail: { ... }}))
+```
+
+**New Way**
+
+```js
+pjax.on('load', param => {});
+```
+
+#### Improved `<script>` tag evaluation
+
+A new and improved approach for handling inline `<script></script>` and external `<script src="*"></script>` javascript.
+
+#### Added `schema` option
+
+You can now customize the attribute annotation schema.
+
+##### Exposed snapshot method
+
+Provided an access point to snapshots in cache. You can return the `Map` holding all snapshots using `pjax.snapshot()` or optionally return a specific reference by passing `url` parameter (eg: `pjax.snapshot(url?: string)`).
+
+#### Transit Purge
+
+Hover pre-fetching sometimes delay the rendering speed between navigations with transit cache has multiple pending fetches. For example, in the Brixtol Textiles webshop we leverage hover pre-fetching on collection pages, which contain multiple urls. When product images are hovered pjax goes about fetching and saving a snapshot of each url to cache but if requests have not completed and a visitor clicks a product while fetches are still in transit then the clicked product will be added to the end of the queue. This results in minor delays between visits, because the pending fetches need to conclude before new ones begin.
+
+This version introduces a transit purge which will abort all requests in queue besides the clicked request. This will free-up the congestion and allow the navigation to proceed.
+
+### 21/12/2021 | v0.3.0-beta.1
 
 ##### Internal Improvements
 

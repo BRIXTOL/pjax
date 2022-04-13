@@ -1,23 +1,27 @@
-import * as path from './path';
-import * as store from './store';
-import * as exp from '../constants/regexp';
-import { assign, from, is } from '../constants/native';
-import { IPage } from '../types/page';
+import { pages, snaps } from './state';
+import * as regex from '../constants/regexp';
+import { create, toArray, nil } from '../constants/native';
+
+/**
+ * Join Strings
+ */
+export function join (...strings: string[]): string {
+
+  return strings.join(nil);
+
+}
 
 /**
  * Array Chunk function
  */
-function chunk (size: number = 2): (acc: any[], value: string) => any[] {
+export function chunk (size: number = 2): (acc: any[], value: string) => any[] {
 
   return (acc, value) => {
 
     const length: number = acc.length;
+    const chunks = (length < 1) || (acc[length - 1].length === size);
 
-    return (
-      !length || is(acc[length - 1].length, size)
-        ? acc.push([ value ])
-        : acc[length - 1].push(value)
-    ) && acc;
+    return (chunks ? acc.push([ value ]) : acc[length - 1].push(value)) && acc;
 
   };
 }
@@ -40,68 +44,18 @@ function chunk (size: number = 2): (acc: any[], value: string) => any[] {
  * { string: 'foo', number: 200 }
  *
  */
-function jsonAttrs (
-  list: any[],
-  type: { [key: string]: string | number }
-): {
-  [key: string]: string | number
-} {
+export function attrjson (attributes: any[]): { [key: string]: string | number } {
 
-  forEach((
-    current: string,
-    index: number,
-    source: string[]
-  ) => {
+  const state = create(null);
 
-    const prop = (source.length - 1) >= index
-      ? (index - 1)
-      : index;
-
-    if (index % 2) {
-      assign(type, {
-        [source[prop]]: exp.isNumber.test(current)
-          ? Number(current)
-          : current
-      });
-    }
-
-  }, list);
-
-  return type;
-
-};
-
-/**
- * Parses link `href` attributes and assigns them to
- * configuration options.
- */
-export function attrparse ({ attributes }: Element, state: IPage = {}): IPage {
-
-  for (const { nodeName, nodeValue } of attributes) {
-
-    if (!exp.Attr.test(nodeName)) continue;
-
-    const value = nodeValue.replace(/\s+/g, '');
-
-    state[nodeName.slice(10)] = exp.isArray.test(value) ? (
-      value.match(exp.ActionParams)
-    ) : exp.isPenderValue.test(value) ? (
-      value.match(exp.ActionParams).reduce(chunk(2), [])
-    ) : exp.isPosition.test(value) ? (
-      jsonAttrs(value.match(exp.inPosition), {})
-    ) : exp.isBoolean.test(value) ? (
-      value === 'true'
-    ) : exp.isNumber.test(value) ? (
-      Number(value)
-    ) : (
-      value
-    );
-
-  }
+  forEach((current: string, index: number, source: string[]) => {
+    const prop = (source.length - 1) >= index ? (index - 1) : index;
+    if (index % 2) state[source[prop]] = regex.isNumber.test(current) ? Number(current) : current;
+  }, attributes);
 
   return state;
 
-}
+};
 
 /**
  * A setTimeout as promise that resolves after `x` milliseconds.
@@ -115,11 +69,11 @@ export function delay (ms: number) {
 /**
  * Locted the closest link when click bubbles.
  */
-export function getLink (target: EventTarget | MouseEvent, selector: string): Element | false {
+export function getLink (target: EventTarget | MouseEvent, selector: string): HTMLLinkElement | false {
 
   if (target instanceof Element) {
     const element = target.closest(selector);
-    if (element && element.tagName === 'A') return element;
+    if (element && element.tagName === 'A') return element as HTMLLinkElement;
   }
 
   return false;
@@ -151,7 +105,28 @@ export function clearObject (object: object): boolean {
  */
 export function canFetch (target: Element): boolean {
 
-  return !store.has(path.get(target).url);
+  if (target.nodeName !== 'A') return false;
+
+  const key = target.getAttribute('href');
+  const has = (key in pages && 'snapshot' in pages[key]) ? pages[key].snapshot in snaps : false;
+
+  return has === false;
+}
+
+/**
+ * Returns a list of link elements to be prefetched. Filters out
+ * any links which exist in cache to prevent extrenous transit.
+ */
+export function getNodeTargets (selector: string, hrefs: string): Element[] {
+
+  const targets = document.body.querySelectorAll(selector);
+  const nodes = toArray(targets).flatMap((node) => {
+    return node.nodeName !== 'A'
+      ? toArray(node.querySelectorAll(hrefs)).filter(canFetch)
+      : canFetch(node) ? node : [];
+  });
+
+  return nodes;
 }
 
 /**
@@ -162,7 +137,7 @@ export function getTargets (selector: string): Element[] {
 
   const targets = document.body.querySelectorAll(selector);
 
-  return from(targets).filter(canFetch);
+  return toArray(targets).filter(canFetch);
 
 }
 
@@ -195,9 +170,11 @@ export function forEach (
 
   if (arguments.length === 1) return (array: any) => forEach(fn, array);
 
-  let i = 0;
-
   const len = array.length;
+
+  if (len === 0) return;
+
+  let i = 0;
 
   while (i < len) {
     fn(array[i], i, array);
@@ -226,19 +203,23 @@ export function getElementAttrs (
   value: string
 ]> {
 
-  const arr = from(attributes);
+  forEach(({ name = null, value = null }) => {
+    if (name && value && !exclude.includes(name)) include.push([ name, value ]);
+  }, toArray(attributes));
 
-  return arr.reduce((
-    acc,
-    {
-      name = null,
-      value = null
-    }
-  ) => {
+  return include;
+}
 
-    if (name && value && !exclude.includes(name)) acc.push([ name, value ]);
+/**
+ * Returns a list of link elements to be prefetched. Filters out
+ * any links which exist in cache to prevent extrenous transit.
+ */
+export function emptyObject <T> (object: T): boolean {
 
-    return acc;
+  const items = Object.getOwnPropertyNames(object);
 
-  }, include);
+  return items.length === 0
+    ? true
+    : items.every(prop => delete object[prop] === true);
+
 }

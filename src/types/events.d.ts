@@ -2,6 +2,41 @@ import { ILocation } from './location';
 import { IPage } from './page';
 
 /**
+ * Pjax Events
+ */
+export type EventNames = (
+ | 'connected'
+ | 'prefetch'
+ | 'trigger'
+ | 'request'
+ | 'cache'
+ | 'hydrate'
+ | 'tracked'
+ | 'render'
+ | 'load'
+);
+
+declare type ConnectedEvent = (state: IPage) => void
+declare type TriggerEvent = (event: MouseEvent, route: IPage) => void | false
+declare type PrefetchEvent = (state: IPage, type: 'hover' | 'intersect' | 'proximity') => void | false
+declare type RequestEvent = (state: IPage, type: 'hover' | 'intersect' | 'proximity') => void | false
+declare type CacheEvent = (state: IPage, snapshot: Document) => void | false | Document
+declare type HydrateEvent = (element: Element, newElement: Element) => void | false
+declare type RenderEvent = (element: Element, newElement: Element) => void | false
+declare type LoadEvent = (state: IPage) => void
+
+export type LifecycleEvent<T extends EventNames> = (
+  T extends 'connected' ? ConnectedEvent :
+  T extends 'trigger' ? TriggerEvent :
+  T extends 'prefetch' ? PrefetchEvent :
+  T extends 'request' ? RequestEvent :
+  T extends 'cache' ? CacheEvent :
+  T extends 'hydrate' ? HydrateEvent:
+  T extends 'render' ? RenderEvent:
+  T extends 'load' ? LoadEvent : never
+)
+
+/**
  * Prefetch Event
  */
 export interface IPrefetch {
@@ -64,7 +99,17 @@ export interface IHydrate {
   /**
    * The new target document
    */
-  hydration: HTMLElement;
+  newTarget: HTMLElement;
+}
+
+/**
+ * Tracked Event
+ */
+export interface ITracked {
+  /**
+   * The node element marked tracked
+   */
+  target: HTMLElement
 }
 
 /**
@@ -80,7 +125,7 @@ export interface ILoad {
 /**
  * Custom Event Wrapper
  */
-export namespace PjaxEvent {
+export namespace Events {
   /**
    * `pjax:prefetch`
    */
@@ -98,11 +143,15 @@ export namespace PjaxEvent {
    */
   export type Render = CustomEvent<IRender>;
   /**
+   * `pjax:tracked`
+   */
+  export type Tracked = CustomEvent<ITracked>;
+  /**
    * `pjax:hydrate`
    */
-   export type Hydrate = CustomEvent<IHydrate>;
+  export type Hydrate = CustomEvent<IHydrate>;
   /**
    * `pjax:load`
    */
-   export type Load = CustomEvent<ILoad>;
+  export type Load = CustomEvent<ILoad>;
 }

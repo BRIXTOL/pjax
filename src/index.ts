@@ -1,14 +1,20 @@
-import { Protocol } from './constants/regexp';
-import { nanoid } from 'nanoid';
+import { IConfig } from 'types';
+import { initialize } from './app/config';
+import { getRoute, origin } from './app/route';
+import { IPage } from './types/page';
+import { assign, create } from './constants/native';
 import * as store from './app/store';
-import * as path from './app/path';
 import * as hrefs from './observers/hrefs';
 import * as request from './app/request';
 import * as controller from './app/controller';
 import * as render from './app/render';
-import { IOptions } from './types/options';
-import { IPage } from './types/page';
-import { assign } from './constants/native';
+import * as scroll from './observers/scroll';
+import * as state from './app/state';
+
+/**
+ * Event Emitters
+ */
+export { on, off } from './app/events';
 
 /**
  * Supported
@@ -23,15 +29,15 @@ export const supported = !!(
 /**
  * Connect Pjax
  */
-export function connect (options: IOptions) {
+export function connect (options: IConfig = {}) {
 
-  store.connect(options);
+  initialize(options);
 
   if (supported) {
-    if (Protocol.test(window.location.protocol)) {
+    if (/https?/.test(window.location.protocol)) {
       addEventListener('DOMContentLoaded', controller.initialize);
     } else {
-      console.error('Invalid protocol, pjax expects https or http protocol');
+      console.error('Pjax: Invalid protocol, pjax expects https or http protocol');
     }
   } else {
     console.error('Pjax is not supported by this browser');
@@ -40,39 +46,70 @@ export function connect (options: IOptions) {
 };
 
 /**
+ * Session
+ *
+ * Returns the current pjax session
+ */
+export function session () {
+
+  return state;
+
+}
+
+/**
  * Reload
  *
  * Reloads the current page
  */
 export async function reload () {
 
-  const page = await request.get(store.pages.get(path.url));
+  const state = store.cache('page') as IPage;
+  const page = await request.get(state);
 
   if (page) {
     console.info('Pjax: Triggered reload, page was re-cached');
     return render.update(page);
   }
 
-  console.warn('Pjax: Reload Trigger failed!');
+  console.warn('Pjax: Reload failed, triggering refresh (cache will be purged)');
 
-  return undefined;
+  return location.assign(state.key);
 
 };
 
 /**
  * Cache
  */
-export function cache (path?: string) {
+export function cache (key?: string) {
 
-  return path ? store.pages.get(path) : store.pages.all;
+  const o = create(null);
 
+  if (key) {
+    if (key in state.pages) return store.get(key);
+    else console.error(`Pjax: No store exists for ${key}`);
+  }
+
+  o.state = state.pages;
+  o.snaps = state.snaps;
+  o.size = request.cacheSize();
+
+  return o;
 }
-/**
- * UUID Generator
- */
-export function uuid (size: number = 12) {
 
-  return nanoid(size);
+/**
+ * Flush Cache
+ */
+export async function fetch (url: string, { parsed = false } = { parsed: false }) {
+
+  const link = getRoute(url);
+
+  if (link.location.origin !== origin) {
+    return console.error('Pjax: Cross origin fetches are not allowed');
+  }
+
+  const response = await request.httpRequest(link.key);
+
+  if (response) return parsed ? render.parse(response) : response;
 
 }
 
@@ -86,20 +123,63 @@ export function clear (url?: string) {
 }
 
 /**
+ * Hydrate the current document
+ */
+export async function hydrate (link: string, elements: string[]): Promise<void|IPage> {
+
+  const route = getRoute();
+  const last = store.get(route.key);
+
+  route.hydrate = elements;
+  route.position = scroll.position();
+  route.type = 'hydrate';
+
+  const dom = await request.httpRequest(link);
+
+  if (!dom) return console.warn('Pjax: hydration failed');
+
+  const update = render.update(store.update(route, dom));
+
+  if (state.config.reverse) {
+    const route = getRoute(last.page.location.lastpath, 'preload');
+    request.get(route);
+  }
+
+  return update;
+
+};
+
+/**
  * Visit
  */
-export async function visit (
-  link: string | Element,
-  state: IPage = {}
-): Promise<void|IPage> {
+export async function prefetch (link: string | Element): Promise<void|IPage> {
 
-  const p = path.get(link, true);
+  const path = getRoute(link);
 
-  return store.has(p.url)
-    ? state.hydrate
-      ? hrefs.navigate(p.url, store.pages.update(p.url, state, p))
-      : hrefs.navigate(p.url, store.pages.update(p.url, state))
-    : hrefs.navigate(p.url, assign(state, p));
+  if (store.has(path.key)) {
+    console.warn(`Pjax: Cache already exists for ${path.key}, prefetch skipped`);
+    return;
+  }
+
+  const prefetch = await request.get(store.create(path));
+
+  if (!prefetch) {
+    console.warn(`Pjax: Prefetch failed for ${path.key}`);
+  }
+
+};
+
+/**
+ * Visit
+ */
+export async function visit (link: string | Element, options?: IPage): Promise<void|IPage> {
+
+  const route = getRoute(link);
+  const merge = typeof options === 'object' ? assign(route, options) : route;
+
+  return store.has(route.key)
+    ? hrefs.navigate(route.key, store.update(merge))
+    : hrefs.navigate(route.key, store.create(merge));
 
 };
 

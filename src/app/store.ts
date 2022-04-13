@@ -1,112 +1,87 @@
-import merge from 'mergerino';
-import browser from 'history/browser';
 import { nanoid } from 'nanoid';
-import { object } from './object';
 import { IPage } from '../types/page';
-import { IOptions } from '../types/options';
-import { assign, isArray } from '../constants/native';
-import { dispatchEvent } from './events';
+import { emit } from './events';
+import { emptyObject } from './utils';
+import { assign, create as object, isArray } from '../constants/native';
+import { pages, snaps, config } from './state';
+import { ILocation } from 'types';
 import * as scroll from '../observers/scroll';
-import * as progress from './progress';
 
 /**
- * Page State
+ * Clear
+ *
+ * Removes cached records. Optionally pass in URL
+ * to remove specific record.
  */
-export const pages = object<{ [url: string]: IPage }>({
-  writable: true,
-  configurable: true
-});
+export function clear (url?: string[] | string): void {
 
-/**
- * Snapshots
- */
-export const snaps = object<{ [id: string]: string }>({
-  writable: true,
-  configurable: true
-});
+  if (typeof url === 'undefined') {
 
-/**
- * Configuration
- */
-export const config: IOptions & {
-  session: {
-    clicks: string;
-    hovers: string;
+    emptyObject(pages);
+    emptyObject(snaps);
+
+  } else if (typeof url === 'string') {
+
+    delete snaps[pages[url].snapshot];
+    delete pages[url];
+
+  } else if (isArray(url)) {
+
+    purge(url);
+
   }
-} = {
-  targets: [ 'body' ],
-  session: {
-    clicks: 'a:not([data-pjax-disable]):not([href^="#"])',
-    hovers: 'a:not([data-pjax-disable]):not([href^="#"])'
-  },
-  request: {
-    timeout: 30000,
-    poll: 150,
-    async: true,
-    dispatch: 'mousedown'
-  },
-  prefetch: {
-    preempt: null,
-    mouseover: {
-      enable: true,
-      threshold: 100,
-      trigger: 'href',
-      proximity: 0
-    },
-    intersect: {
-      enable: true
-    }
-  },
-  cache: {
-    enable: true,
-    limit: 25,
-    save: false,
-    reverse: true
-  },
-  progress: {
-    enable: true,
-    threshold: 850,
-    style: {
-      render: true,
-      colour: '#111',
-      height: '2px'
-    },
-    options: {
-      minimum: 0.1,
-      easing: 'ease',
-      speed: 225,
-      trickle: true,
-      trickleSpeed: 225,
-      showSpinner: false
-    }
-  }
-};
-
-/**
- * Connects store and intialized the workable
- * state management model. Connect MUST be called
- * upon Pjax initialization. This function acts
- * as a class `constructor` establishing an instance.
- */
-export function connect (options: IOptions = {}): void {
-
-  const updated = merge(config, {
-    ...options, // PRESETS PATCH COPY
-    request: { ...options?.request, dispatch: undefined },
-    cache: { ...options?.cache, save: undefined },
-    session: {
-      hovers: config.prefetch.mouseover.trigger === 'attribute'
-        ? 'a:not([data-pjax-disable]):not([href^="#"])'
-        : 'a:not([data-pjax-disable]):not([href^="#"]):not([data-pjax-prefetch="false"])'
-    }
-  });
-
-  assign(config, updated);
-
-  // Assert Progress
-  if (config.progress.enable) progress.config(config.progress);
 
 }
+
+/**
+ * Defaults
+ *
+ * Page state defaults applied to `pages` and written
+ * to history push state. This is used on each pjax
+ * visit and will be overwritten by attribute configs
+ * or by any programmatic triggers.
+ */
+export function create (state?: IPage): IPage {
+
+  const page: IPage = object(null);
+
+  page.key = null;
+  page.history = true;
+  page.type = 'visit';
+  page.title = document.title;
+  page.replace = config.targets;
+  page.cache = config.cache;
+  page.snapshot = page.cache ? nanoid() : null;
+  page.position = scroll.y0x0();
+  page.location = object(null) as ILocation;
+
+  if (config.proximity !== false) page.proximity = config.proximity.threshold;
+  if (config.hover !== false) page.threshold = config.hover.threshold;
+  if (config.progress !== false) page.progress = config.progress.threshold;
+
+  if (!page.cache) delete state.cache;
+
+  return assign(page, state);
+
+}
+
+/**
+ * Check if cache record exists with snapshot
+ */
+export function cache (record?: 'page' | 'snapshot' | 'location') {
+
+  const page = pages[cache.prototype.key];
+
+  if (record === 'page') return page as IPage;
+  if (record === 'location') return page.location as ILocation;
+  if (record === 'snapshot') return snaps[page.snapshot] as string;
+
+  return {
+    page,
+    get snapshot () { return snaps[page.snapshot]; }
+  };
+
+};
 
 /**
  * Handles a new page visit or a return page visit. New visits
@@ -116,71 +91,36 @@ export function connect (options: IOptions = {}): void {
  * **Breakdown**
  *
  * Subsequent visits calling this function will have their per-page
- * specific state (generally the configs set via attributes) reset
- * and merged into its existing records (if it has any), otherwise
- * a new page instance will be generated including defult preset configs.
+ * specific state like the config set via attributes reset and merged
+ * into its existing records (if it has any), otherwise a new page
+ * instance will be generated with the default preset configuration.
  */
-export function capture (state: IPage, snapshot: string): IPage {
+export function set (state: IPage, snapshot: string): IPage {
 
-  const page = assign({
-    history: true,
-    snapshot: state.snapshot || nanoid(16),
-    position: state.position || scroll.reset(),
-    cache: config.cache.enable,
-    progress: config.progress.threshold,
-    threshold: config.prefetch.mouseover.threshold
-  }, state, {
-    targets: config.targets
-  });
+  if (!emit('cache', state, snapshot)) return;
 
-  if (page.cache && dispatchEvent('pjax:cache', page, true)) {
-    pages.set(page.url, page);
-    snaps.set(page.snapshot, snapshot);
-  }
+  pages[state.key] = state;
+  cache.prototype.key = state.key;
 
-  return page;
+  if (state.cache) snaps[state.snapshot] = snapshot;
+
+  return state;
 
 }
 
 /**
- * Hydrate Capture
- *
- * This method run a hydration replacement. When targets are
- * defined on `hydrate[]` or `data-pjax-hydrate="([])"` then
- * the target location will replace the defined fragments on the
- * the page cache reference the fetch was trigger from.
+ * Update the page state and snapshots
  */
-export function hydrate (state: IPage, snapshot: string): IPage {
+export function update (state: IPage, snapshot?: string): IPage {
 
-  const page = pages.update(state.location.lastpath, { hydrate: state.hydrate });
-  snaps.set(page.snapshot, snapshot);
+  const page = state.key in pages
+    ? assign(pages[state.key], state)
+    : create(state);
 
-  return page;
-
-}
-
-/**
- * Removes cached records. Optionally pass in URL
- * to remove specific record.
- */
-export function clear (url?: string[] | string): void {
-
-  if (typeof url === 'undefined') {
-
-    pages.clear();
-    snaps.clear();
-
-  } else if (typeof url === 'string') {
-
-    snaps.delete(pages.get(url).snapshot);
-    pages.delete(url);
-
-  } else if (isArray(url)) {
-
-    const saved = pages.clear(url);
-    snaps.clear(saved as any);
-
+  if (typeof snapshot === 'string') {
+    snaps[page.snapshot] = snapshot;
   }
+  return page;
 
 }
 
@@ -188,16 +128,14 @@ export function clear (url?: string[] | string): void {
  * Check if cache record exists with snapshot
  *
  * @param {string} url
- * @param {{snapshot?: boolean}} has
  */
 export function get (url: string) {
 
-  const page = pages.get(url);
+  const page = pages[url];
+  const snapshot = snaps[page.snapshot];
 
-  return {
-    page,
-    snapshot: snaps.get(page.snapshot)
-  };
+  return ({ page, snapshot });
+
 }
 
 /**
@@ -205,19 +143,24 @@ export function get (url: string) {
  */
 export function has (url: string): boolean {
 
-  return pages.has(url, 'snapshot') ? snaps.has(pages.get(url).snapshot) : false;
+  return (url in pages && 'snapshot' in pages[url])
+    ? pages[url].snapshot in snaps
+    : false;
 
 }
 
 /**
- * Update current pushState History
+ * Purge
+ *
+ * Clears all records from store. Optionally provide a list
+ * of targets to be cleared. Returns a list of snapshots
+ * that remain.
  */
-export function history (): string {
+export function purge (targets: string[] = []) {
 
-  const { location } = browser;
-  const updated = assign({}, location.state, { position: scroll.position });
+  return Object.getOwnPropertyNames(pages).forEach((url) => {
+    if (!targets.includes(url)) delete pages[url];
+    else delete snaps[pages[url].snapshot];
+  });
 
-  browser.replace(location, updated);
-
-  return (location.state as any).url;
 }

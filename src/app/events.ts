@@ -1,29 +1,74 @@
-import { IEvents } from '../types/page';
+import { events } from './state';
+import { forEach } from './utils';
+/**
+ * Pjax Events
+ */
+export type EventNames = (
+  | 'connected'
+  | 'prefetch'
+  | 'trigger'
+  | 'click'
+  | 'request'
+  | 'cache'
+  | 'hydrate'
+  | 'tracked'
+  | 'render'
+  | 'script'
+  | 'load'
+ );
 
 /**
- * Dispatches lifecycle events on target elements
+ * Emit Event
+ *
+ * Private function use for emitting events
+ * which users are subscribed.
  */
-export function targetedEvent (eventName: IEvents, target: Element): boolean {
+export function emit (name: EventNames, ...args: any[]) {
 
-  // create and dispatch the event
-  const newEvent = new CustomEvent(eventName, { cancelable: true });
+  const data = [].slice.call(arguments, 1);
 
-  return target.dispatchEvent(newEvent);
+  let run = true;
+
+  forEach(argument => {
+    const cb = argument.apply(null, data);
+    if (cb === false) run = false;
+  }, events[name] || []);
+
+  return run;
 
 }
 
 /**
- * Dispatches lifecycle events on the document.
+ * On Event
+ *
+ * Exposed as public method on `pjax`
  */
-export function dispatchEvent (
-  eventName: IEvents,
-  detail: object,
-  cancelable: boolean = false
-): boolean {
+export function on (name: EventNames, callback: () => void) {
 
-  // create and dispatch the event
-  const newEvent = new CustomEvent(eventName, { detail, cancelable });
+  if (!(name in events)) events[name] = [];
 
-  return document.dispatchEvent(newEvent);
+  events[name].push(callback);
 
+}
+
+/**
+ * Off Event
+ *
+ * Exposed as public method on `pjax`
+ */
+export function off (name: EventNames, callback: () => void) {
+
+  const evts = events[name];
+  const live = [];
+
+  if (evts && callback) {
+    let i = 0;
+    const len = evts.length;
+    for (; i < len; i++) if (evts[i] !== callback) live.push(evts[i]);
+  }
+
+  if (live.length) events[name] = live;
+  else delete events[name];
+
+  return this;
 }

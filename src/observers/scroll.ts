@@ -1,35 +1,53 @@
 import { IPosition } from '../types/page';
-import { connect } from '../app/connects';
+import * as state from '../app/state';
+import { create } from '../constants/native';
 
 /**
  * Returns to current scroll position, the `reset()`
  * function **MUST** be called after referencing this
  * to reset position.
  */
-export const position: IPosition = { x: 0, y: 0 };
+let ticking: boolean = false;
+
+/**
+ * Set the current scroll position offset
+ * and update the X and Y page references.
+ */
+export function position (): IPosition {
+
+  return state.position;
+
+}
 
 /**
  * onScroll event, asserts the current X and Y page
  * offset position of the document
  */
-export function onScroll (): IPosition {
+export function onscroll (): void {
 
-  position.x = window.scrollX || window.pageXOffset;
-  position.y = window.scrollY || window.pageYOffset;
+  state.position.y = window.scrollY;
+  state.position.x = window.scrollX;
 
-  return position;
+  if (!ticking) {
+    requestAnimationFrame(position);
+    ticking = true;
+  }
+
 }
 
 /**
- * Resets the scroll position`of the document, applying
+ * Resets the scroll position of the document, applying
  * a `x`and `y` positions to `0`
  */
 export function reset (): IPosition {
 
-  position.x = 0;
-  position.y = 0;
+  ticking = false;
 
-  return position;
+  state.position.x = 0;
+  state.position.y = 0;
+
+  return state.position;
+
 }
 
 /**
@@ -39,7 +57,12 @@ export function reset (): IPosition {
  */
 export function y0x0 (): IPosition {
 
-  return { x: 0, y: 0 };
+  const position = create(null);
+
+  position.x = 0;
+  position.y = 0;
+
+  return position;
 
 }
 
@@ -48,11 +71,11 @@ export function y0x0 (): IPosition {
  */
 export function start (): void {
 
-  if (!connect.scroll) {
-    onScroll();
-    addEventListener('scroll', onScroll, { passive: true });
-    connect.scroll = true;
-  }
+  if (state.connect.has(6)) return;
+
+  onscroll();
+  addEventListener('scroll', onscroll, { passive: true });
+  state.connect.add(6);
 
 }
 
@@ -61,10 +84,10 @@ export function start (): void {
  */
 export function stop (): void {
 
-  if (connect.scroll) {
-    removeEventListener('scroll', onScroll, false);
-    reset();
-    connect.scroll = false;
-  }
+  if (!state.connect.has(6)) return;
+
+  removeEventListener('scroll', onscroll, false);
+  reset();
+  state.connect.delete(6);
 
 }

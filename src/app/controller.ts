@@ -4,13 +4,12 @@ import * as intersect from '../observers/intersect';
 import * as request from '../app/request';
 import * as scroll from '../observers/scroll';
 import * as history from '../observers/history';
-import browser from 'history/browser';
-import { url, parse } from './path';
-import { isArray } from '../constants/native';
-import { connect } from './connects';
+// import * as proximity from '../observers/proximity';
+import { getRoute } from './route';
+import { connect, config } from './state';
+import { emit } from './events';
 import * as store from './store';
-import { forEach } from './utils';
-import { ILocation } from '../types/location';
+import { isArray } from '../constants/native';
 
 /**
  * Sets initial page state executing on intial load.
@@ -19,27 +18,41 @@ import { ILocation } from '../types/location';
  */
 function onload (): void {
 
-  const page = store.capture({
-    url,
-    location: parse(url),
-    position: scroll.position
-  }, document.documentElement.outerHTML);
+  // PERFORM REVERSE CACHING
+  const state = store.create(getRoute());
+  const reverse = history.previous();
 
-  if (store.config.prefetch.preempt !== null) {
-    const { preempt } = store.config.prefetch;
-    if (isArray(preempt)) forEach(path => request.get(path, 'preempt'))(preempt);
-    else if (preempt?.[url]) delete preempt[url];
+  if (config.reverse && typeof reverse === 'string') state.location.lastpath = reverse;
+
+  const page = store.set(state, document.documentElement.outerHTML);
+  state.position = scroll.position();
+
+  emit('connected', page);
+
+  if (config.preload !== null) {
+    if (isArray(config.preload)) {
+
+      // PRELOAD ARRAY LIST
+      for (const path of config.preload) {
+        const route = getRoute(path, 'preload');
+        if (route.key !== path) request.get(store.create(route));
+      }
+
+    } else if (typeof config.preload === 'object' && state.key in config.preload) {
+
+      // PRELOAD SPECIFIC ROUTE LIST
+      for (const path of config.preload[state.key]) {
+        const route = getRoute(path, 'preload');
+        if (route.key !== path) request.get(store.create(route));
+      }
+    }
   }
 
-  if (store.config.cache.reverse) {
-    const previous: { location?: ILocation } = browser.location.state;
-    if (previous?.location?.lastpath) {
-      request
-        .get(previous.location.lastpath, 'reverse')
-        .then(() => browser.replace(window.location, page));
-    }
-  } else {
-    browser.replace(window.location, page);
+  history.create(page);
+
+  if (page.location.lastpath !== state.key) {
+    const state = getRoute(page.location.lastpath, 'reverse');
+    request.get(store.create(state));
   }
 
   removeEventListener('load', onload);
@@ -51,19 +64,19 @@ function onload (): void {
  */
 export function initialize (): void {
 
-  if (!connect.controller) {
+  if (!connect.has(1)) {
 
     history.start();
-    hrefs.start();
     scroll.start();
+    hrefs.start();
     hover.start();
     intersect.start();
+    // proximity.start();
 
     addEventListener('load', onload);
 
-    connect.controller = true;
-
-    console.info('Pjax: Connection Established ⚡');
+    connect.add(1);
+    console.info('Brixtol Pjax: Connection Established ⚡');
   }
 }
 
@@ -72,22 +85,22 @@ export function initialize (): void {
  */
 export function destroy (): void {
 
-  if (connect.controller) {
+  if (connect.has(1)) {
 
     history.stop();
-    hrefs.stop();
     scroll.stop();
+    hrefs.stop();
     hover.stop();
     intersect.stop();
+    // proximity.stop();
     store.clear();
+    connect.delete(1);
 
-    connect.controller = false;
-
-    console.warn('Pjax: Instance has been disconnected! 😔');
+    console.warn('Brixtol Pjax: Instance has been disconnected! 😔');
 
   } else {
 
-    console.warn('Pjax: No connection made, disconnection is void 🙃');
+    console.warn('Brixtol Pjax: No connection made, disconnection is void 🙃');
   }
 
 }

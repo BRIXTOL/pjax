@@ -1,20 +1,39 @@
 /**
- * Object Methods
+ * Cached `Object.assign`
  */
-export const {
-  create,
-  assign,
-  is,
-  keys,
-  values,
-  defineProperty,
-  getOwnPropertyNames
-} = Object;
+export const assign = Object.assign;
 
 /**
- * Array from
+ * Cached `Object.keys`
  */
-export const {
-  from,
-  isArray
-} = Array;
+export const keys = Object.keys;
+
+/**
+  * Cached `Object.defineProperty`
+  */
+export const define = Object.defineProperty;
+
+/**
+  * Cached `Object.defineProperties`
+  */
+export const defineProps = Object.defineProperties;
+
+/**
+  * Cached `Object.create`
+  */
+export const create = Object.create;
+
+/**
+ * Cached `Array.isArray`
+ */
+export const isArray = Array.isArray;
+
+/**
+ * Cached `Array.from`
+ */
+export const toArray = Array.from;
+
+/**
+ * Empty String Value
+ */
+export const nil = '';

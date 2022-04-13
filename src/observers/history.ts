@@ -1,30 +1,94 @@
-import browser from 'history/browser';
+import { IPage } from 'types';
+import history from 'history/browser';
 import { BrowserHistory, createPath } from 'history';
 import * as render from '../app/render';
 import * as request from '../app/request';
 import * as store from '../app/store';
-import { position } from './scroll';
-import { IPage } from '../types/page';
-import { connect } from '../app/connects';
-import merge from 'mergerino';
+import * as scroll from './scroll';
+import { connect, pages } from '../app/state';
+import { assign } from '../constants/native';
 
+/**
+ * Listener state
+ */
 let unlisten: () => void = null;
 
+/**
+ * Determines if page is in transit
+ */
 let inTransit: string;
 
 /**
- * Popstate Navigation
+ * Create history state
+ *
+ * Triggers a history replace action saving
+ * the current page state to history.
+ */
+export function create (state: IPage) {
+
+  history.replace(history.location, state);
+
+  return history.location.state;
+
+}
+
+/**
+ * Create history state
+ */
+export function get () {
+
+  return history.location.state;
+
+}
+
+/**
+ * Check if history state holds lastpath
+ */
+export function previous () {
+
+  // PERFORM REVERSE CACHING
+  if (history.location.state === null) return false;
+
+  const state = history.location.state as IPage;
+
+  if ('location' in state) {
+    if ('lastpath' in state.location) {
+      return state.location.lastpath;
+    }
+  }
+
+  return false;
+
+}
+
+/**
+ * Execute a history state replacement for the current
+ * page location. It's intended use is to update the
+ * current scroll position and any other values stored
+ * in history state.
+ */
+export function update (): IPage {
+
+  const update = assign(history.location.state as IPage, { position: scroll.position() });
+
+  history.replace(history.location, update);
+
+  return update;
+
+}
+
+/**
+ * Popstate Event
+ *
+ * Fires popstate navigation request
  */
 async function popstate (url: string, state: IPage): Promise<void|IPage> {
 
-  if (url !== inTransit) request.cancel(inTransit);
+  if (url !== inTransit) request.abort(inTransit);
 
   if (store.has(url)) {
-    if (state.type === 'reverse') {
-      return render.update(store.pages.update(url, { position: state.position }), true);
-    } else {
-      return render.update(store.pages.get(url), true);
-    }
+    if (state.type !== null && state.type === 'reverse') pages[url].position = state.position;
+    return render.update(pages[url], true);
   }
 
   inTransit = url;
@@ -36,6 +100,8 @@ async function popstate (url: string, state: IPage): Promise<void|IPage> {
 };
 
 /**
+ * Listener Callback
+ *
  * Event History dispatch controller, handles popstate,
  * push and replace events via third party module
  */
@@ -46,42 +112,29 @@ function listener ({ action, location }: BrowserHistory) {
 };
 
 /**
+ * Start History API
+ *
  * Attached `history` event listener.
  */
 export function start (): void {
 
-  if (!connect.history) {
-    unlisten = browser.listen(listener);
-    connect.history = true;
+  if (!connect.has(2)) {
+    unlisten = history.listen(listener);
+    connect.add(2);
   }
 
 }
 
 /**
+ * End History API
+ *
  * Removed `history` event listener.
  */
 export function stop (): void {
 
-  if (connect.history) {
+  if (connect.has(2)) {
     unlisten();
-    connect.history = false;
+    connect.delete(2);
   }
-
-}
-
-/**
- * Execute a history state replacement for the current
- * page location. It's intended use is to update the
- * current scroll position and any other values stored
- * in history state.
- *
- */
-export function updateState (): IPage {
-
-  const updated = merge(browser.location.state as IPage, { position });
-
-  browser.replace(browser.location, updated);
-
-  return updated;
 
 }
