@@ -78,7 +78,7 @@ export const isNumber: RegExp = /^[+-]?\d*\.?\d+$/;
  *
  * Used to Match whitspaces
  */
-export const isWhitespace: RegExp = /\s+/g;
+export const Whitespace: RegExp = /\s+/g;
 
 /**
  * Attribute Action Caller

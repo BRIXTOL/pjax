@@ -13,17 +13,22 @@ export interface ISelectors {
    */
   attrs?: RegExp;
   /**
-   * Eval selector
+   * Scripts
    *
    * Attribute only select type, see render.ts
    */
-  eval?: string;
+  scripts?: string;
   /**
-   * Eval True selector
+   * Inline styles
    *
    * Tracker for eval
    */
-  observe?: string;
+  styles?: string;
+  /**
+   * External Style link rel
+   *
+   */
+  stylelink?: string;
   /**
    * Hydration selector
    *
@@ -111,17 +116,5 @@ export interface ISelectors {
    * - `<a data-pjax-disable">`
    */
   proximity?: string;
-  /**
-   * Proximity hrefs
-   *
-   * ---
-   *
-   * **EXCLUDED**:
-   *
-   * - `<a href="#">`
-   * - `<a data-pjax-proximity="false">`
-   * - `<a data-pjax-disable">`
-   */
-  proximityhrefs?: string;
 
 }

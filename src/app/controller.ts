@@ -4,7 +4,8 @@ import * as intersect from '../observers/intersect';
 import * as request from '../app/request';
 import * as scroll from '../observers/scroll';
 import * as history from '../observers/history';
-// import * as proximity from '../observers/proximity';
+import * as proximity from '../observers/proximity';
+import { EventType, StoreType } from '../constants/enums';
 import { getRoute } from './route';
 import { connect, config } from './state';
 import { emit } from './events';
@@ -34,16 +35,16 @@ function onload (): void {
 
       // PRELOAD ARRAY LIST
       for (const path of config.preload) {
-        const route = getRoute(path, 'preload');
-        if (route.key !== path) request.get(store.create(route));
+        const route = getRoute(path, StoreType.PRELOAD);
+        if (route.key !== path) request.get(store.create(route), EventType.PRELOAD);
       }
 
     } else if (typeof config.preload === 'object' && state.key in config.preload) {
 
       // PRELOAD SPECIFIC ROUTE LIST
       for (const path of config.preload[state.key]) {
-        const route = getRoute(path, 'preload');
-        if (route.key !== path) request.get(store.create(route));
+        const route = getRoute(path, StoreType.PRELOAD);
+        if (route.key !== path) request.get(store.create(route), EventType.PRELOAD);
       }
     }
   }
@@ -51,8 +52,8 @@ function onload (): void {
   history.create(page);
 
   if (page.location.lastpath !== state.key) {
-    const state = getRoute(page.location.lastpath, 'reverse');
-    request.get(store.create(state));
+    const state = getRoute(page.location.lastpath, StoreType.REVERSE);
+    request.get(store.create(state), EventType.REVERSE);
   }
 
   removeEventListener('load', onload);
@@ -71,7 +72,7 @@ export function initialize (): void {
     hrefs.start();
     hover.start();
     intersect.start();
-    // proximity.start();
+    proximity.start();
 
     addEventListener('load', onload);
 
@@ -92,7 +93,7 @@ export function destroy (): void {
     hrefs.stop();
     hover.stop();
     intersect.stop();
-    // proximity.stop();
+    proximity.stop();
     store.clear();
     connect.delete(1);
 

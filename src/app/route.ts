@@ -1,11 +1,11 @@
 import { schema } from './state';
 import * as regex from '../constants/regexp';
 import { IPage } from '../types/page';
-import { nil, create } from '../constants/native';
+import { nil, create, history } from '../constants/native';
 import { attrjson, chunk } from './utils';
-import history from 'history/browser';
 import { parsePath, createPath } from 'history';
 import { ILocation } from '../types/location';
+import { StoreType } from '../constants/enums';
 
 /**
  * Origin
@@ -34,7 +34,7 @@ export function getAttributes ({ attributes }: Element): IPage {
     if (!schema.attrs.test(nodeName)) continue;
 
     const name = nodeName.slice(1 + nodeName.lastIndexOf('-'));
-    const value = nodeValue.replace(/\s+/g, nil);
+    const value = nodeValue.replace(regex.Whitespace, nil);
 
     if (regex.isArray.test(value)) {
       state[name] = regex.isPender.test(name)
@@ -109,9 +109,10 @@ export function getLocation (path: string): ILocation {
   state.origin = origin;
   state.hostname = hostname;
   state.pathname = pathname;
-  state.search = search;
-  state.hash = hash;
   state.lastpath = createPath(history.location);
+
+  if (search) state.search = search;
+  if (hash) state.hash = hash;
 
   return state;
 
@@ -127,7 +128,7 @@ export function getLocation (path: string): ILocation {
  * This function is triggered for every visit request
  * or action which infers navigations, ie: mouseover.
  */
-export function getRoute (link?: Element | string, type?: string): IPage {
+export function getRoute (link?: Element | string, type?: StoreType): IPage {
 
   const state: IPage = link instanceof Element
     ? getAttributes(link)
@@ -144,9 +145,9 @@ export function getRoute (link?: Element | string, type?: string): IPage {
 
   state.type = typeof type === 'undefined'
     ? path === state.location.lastpath
-      ? 'initial'
+      ? StoreType.INITIAL
       : type
-    : 'visit';
+    : StoreType.VISIT;
 
   return state;
 

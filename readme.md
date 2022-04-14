@@ -1,6 +1,6 @@
 # @brixtol/pjax
 
-A blazing fast, lightweight (7.9kb gzipped) and feature full new generation pjax solution. This pjax variation supports advanced pre-fetching capabilities, multiple fragment replacements and employs a snapshot caching engine that prevents subsequent requests from occurring. The perfect solution for SSR or SaaS powered web applications.
+A blazing fast, lightweight (8.2kb gzipped) and feature full new generation pjax solution. This pjax variation supports advanced pre-fetching capabilities, multiple fragment replacements and employs a snapshot caching engine that prevents subsequent requests from occurring.
 
 ### Features
 
@@ -184,6 +184,8 @@ Enable or Disable caching. Each page visit request is cached and used in subsequ
 
 ### `persist`
 
+**NOT YET AVAILABLE**
+
 The `persist` option can be used to restore cache into memory after a browser refresh has been triggered. When persisting cache a reference is maintained in session storage.
 
 **Type:** `boolean` <br>
@@ -246,7 +248,7 @@ The distance range the mouse should be within before the prefetch is triggered. 
 Controls the fetch delay threshold. Requests will fire only when the mouse is both within range and the threshold time limit defined here has exceeded.
 
 **Type:** `number` <br>
-**Default:** `500` <br>
+**Default:** `250` <br>
 
 ### `proximity.threshold`
 
@@ -533,60 +535,80 @@ The Pjax lifecycle events are dispatched in the following order of execution:
 import type { Events } from '@brixtol/pjax'
 
 // Triggered once after pjax initialization
-pjax.on('connect', (state: IPage) => void)
+pjax.on('connected', (state: IPage) => void)
 
 // Triggered when a prefetch is triggered
-pjax.on('prefetch', (state: IPage, type: 'hover' | 'intersect' | 'proximity') => void | false)
+pjax.on('prefetch', (target: Element, state: IPage, type: EventType) => void | false)
 
 // Triggered when a mousedown event occurs on a link
 pjax.on('trigger', (event: Event, state: IPage) => void | false)
 
 // Triggered before a page is fetched over XHR
-pjax.on('request', (state: IPage, type: 'hover' | 'intersect' | 'proximity') => void | false)
+pjax.on('request', (state: IPage, type: EventType) => void | false)
 
-// Triggered before a page is fetched over XHR
+// Triggered before a page and snapshot is saved to memory
 pjax.on('cache', (state: IPage, snapshot: Document) => void | false | Document)
 
 // Triggered on before a hydration replacement occurs
-pjax.on('hydrate', (oldTarget: Element, newTarget: Element) => void | false)
+pjax.on('hydrate', (target: Element, newTarget: Element) => void | false)
 
 // Triggered before a page or fragment is rendered
-pjax.on('render', (oldTarget: Element, newTarget: Element) => void | false)
+pjax.on('render', (target: Element, newTarget: Element) => void | false)
 
 // Triggered after a page has rendered
 pjax.on('load', (state: IPage) => void)
 
 ```
 
-### `connect`
+### `connected`
 
-The connect event will be triggered after Pjax has connected and fired only once. This is the equivalent of the `DOMContentLoaded` event. Upon connection, Pjax will save the current documents outer HTML to the snapshot cache using `document.documentElement.outerHTML` whereas all additional snapshots are saved after an XHR request completes.
+The connected event will be triggered after Pjax has connected and fired only once. This is the equivalent of the `DOMContentLoaded` event. Upon connection, Pjax will save the current documents outer HTML to the snapshot cache using `document.documentElement.outerHTML` whereas all additional snapshots are saved after an XHR request completes.
 
-Because the initial snapshot is saved using `document.documentElement.outerHTML` the captured HTML may cause third party scripts which augment the document to fail when a return navigation to the location occurs. You can prevent issues of this nature from occurring by initializing your modules within `connect`.
+Because the initial snapshot is saved using `document.documentElement.outerHTML` the captured HTML may cause third party scripts which have augmented the document to serve an invalid dom into the snapshot cache. When a return navigation to this location occurs it may cause the third party script to fail. You can prevent issues of this nature from happening by initializing your modules within the `connected` event.
+
+**Cancellable:** `false`
 
 ### `prefetch`
 
-The prefetch event will be triggered for every prefetch request. Prefetch requests are fired for `mouseover`, `intersect` and `proximity` occur. This event will be frequent if you are leveraging any of these capabilities.
+The prefetch event will be triggered for every prefetch request. Prefetch requests are fired when `hover`, `intersect` and `proximity` are triggered. This event will be frequently triggered if you are leveraging any of those capabilities. You can determine the type of prefetch which has occurred via the `type` parameter.
+
+**Cancellable:** `true`
 
 ### `trigger`
 
 The trigger event will be triggered when a `mousedown` event has occurred on a Pjax enabled `href`. This is the equivalent of a `click` and allows you to hook into the dispatch. Use this event to teardown any third party scripts.
 
+**Cancellable:** `true`
+
 ### `request`
 
 The request event will be triggered before an XHR request begins and a page is fetched. This event will be fired for `prefetch`, `hydrate` and `trigger` actions. You can determine the trigger action for the request using the `type` property passed in the `event.detail` parameter.
 
+**Cancellable:** `true`
+
 ### `cache`
 
-The cache event will be triggered immediately after a request has finished and before the snapshot is saved. You can determine the trigger action for the request using the `type` property passed in the `event.detail` parameter.
+The cache event will be triggered immediately after a request has finished and before the snapshot and page record is saved to memory. You can determine the trigger action for the request via the `type` parameter. This Lifecycle also allows you to augment the snapshot `Document` and before it is saved.
+
+**Cancellable:** `true`
 
 ### `render`
 
-The render event will be triggered before a page or fragment is rendered (replaced) in the dom. For every `target` you've defined this event fires. You can determine which elements are being replaced via the `target` and `newTarget` properties passed in the `event.detail` parameter. The `target` property represents the current element that will be replaced and the `newTarget` element represents the new target.
+The render event will be triggered before a page or fragment is rendered (replaced) in the dom. For every `target` you've defined this event will fire. You can determine which elements are being replaced via the `target` and `newTarget` parameters passed. The `target` property represents the current element that will be replaced and the `newTarget` element represents the new target which it will be replaced with.
+
+**Cancellable:** `true`
+
+### `hydrate`
+
+The hydrate event is identical to the `render` event. The parameters represent the current `target` and `newTarget` elements which will be replaced.
+
+**Cancellable:** `true`
 
 ### `load`
 
 The load event is the final lifecycle event to be triggered. Use this event to re-initialize any third party scripts. The load event will only execute after navigation has concluded.
+
+**Cancellable:** `false`
 
 # Methods
 
@@ -598,29 +620,32 @@ import * as pjax from '@brixtol/pjax'
 // Check to see if Pjax is supported by the browser
 pjax.supported: boolean
 
-// Connects Pjax, called upon initialization
+// Connects Pjax, call to initialize a pjax session
 pjax.connect(options?): void
 
-// Returns the current page state reference
-pjax.current(): IPage
+// Returns the session model
+pjax.session(): ISession
 
 // Trigger hydration, optionally pass search params
-pjax.hydrate(options: { url?: string, target: Elements[] }): Promise<Page{}>
+pjax.hydrate(options: { url?: string, target: Elements[] }): Promise<IPage>
+
+// Triggers a programmatic fetch (the record is not cached)
+pjax.fetch(url: string): Promise<Document>
+
+// Triggers a programmatic pre-fetch visit
+pjax.prefetch(link: string | Element): Promise<IPage>
 
 // Execute a programmatic pjax visit
-pjax.visit(url?, options?): Promise<Page{}>
+pjax.visit(url?: string, options?): Promise<IPage>
 
 // Access the cache, pass in href for specific record
-pjax.cache(url?): Page{}
+pjax.cache(url?: string): Page{}
 
-// Returns a snapshot
-pjax.snapshot(url?, options?): Document | { [id: string]: string }
+// Returns a snapshot or list of snapshots
+pjax.snapshot(url?: string, options?): Document | { [id: string]: string }
 
 // Clears the cache, pass in url to clear specific record
-pjax.clear(url?): void
-
-// Returns a UUID string via nanoid
-pjax.uuid(size = 16): string
+pjax.clear(url?: string): void
 
 // Reloads the current page
 pjax.reload(): Page{}
@@ -1360,7 +1385,7 @@ This attribute is a `string` type and expects on the following values.
 - `false`
 - `reset`
 - `clear`
-- `restore`
+- `restore` _option is not yet available_
 
 </details>
 
@@ -1629,20 +1654,20 @@ interface IPage {
     pathname: string;
 
     /**
-     * The URL search params
+     * The URL search params (omitted is no search exist)
      *
      * @example
      * '?param=foo&bar=baz'
      */
-    search: string;
+    search?: string;
 
     /**
-     * The URL Hash
+     * The URL Hash (omitted is no hash exist)
      *
      * @example
      * '#foo'
      */
-    hash: string;
+    hash?: string;
 
     /**
      * The previous page path URL, this is also the cache identifier.

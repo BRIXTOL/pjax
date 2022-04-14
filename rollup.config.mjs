@@ -5,7 +5,7 @@ export default rollup(
     input: 'src/index.ts',
     output: [
       {
-        format: 'es',
+        format: 'esm',
         name: 'Pjax',
         exports: 'named',
         file: 'package/pjax.mjs',
@@ -28,32 +28,24 @@ export default rollup(
     treeshake: 'smallest',
     plugins: env.if('dev')(
       [
-        plugin.esbuild(),
-        plugin.resolve(
-          {
-            browser: true,
-            extensions: [
-              '.ts',
-              '.js'
+        plugin.esbuild({
+          minify: true,
+          optimizeDeps: {
+            esbuildOptions: {
+              format: 'esm',
+              bundle: true,
+              treeShaking: true,
+              platform: 'browser',
+              minify: true
+            },
+            include: [
+              'history',
+              'nanoid',
+              'detect-it'
             ]
           }
-        ),
-        plugin.replace(
-          {
-            preventAssignment: true,
-            values: {
-              'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV)
-            }
-          }
-        ),
-        plugin.commonjs(
-          {
-            extensions: [
-              '.ts',
-              '.js'
-            ]
-          }
-        ),
+        }),
+
         plugin.copy(
           {
             copyOnce: env.watch,
@@ -69,7 +61,6 @@ export default rollup(
       ]
     )(
       [
-        plugin.esminify({ legalComments: 'none' }),
         plugin.filesize()
       ]
     )

@@ -5,22 +5,23 @@ import { IConfig, IIntersect, IMouseover, IProximity, Options } from 'types';
 
 function selectors (config: IConfig) {
 
-  const keys = 'hydrate|append|prepend|replace|progress|threshold|position|proximity|hover';
-  const attr = config.schema === null ? 'data' : `data-${config.schema}`;
+  const keys = 'hydrate|append|prepend|replace|progress|threshold|position|proximity|hover|history';
 
-  state.schema.attrs = new RegExp(`^${attr}-(${keys})$`, 'i');
-  state.schema.eval = `script:not([${attr}-eval=false])`;
-  state.schema.hydrate = `[${attr}-hydrate]`;
-  state.schema.href = `a:not([${attr}-disable]):not([href^="#"])`;
-  state.schema.track = `[${attr}-track]:not([${attr}-track=false])`;
-  state.schema.observe = `[${attr}-eval=true]`;
+  state.schema.attrs = new RegExp(`^${config.schema}-(${keys})$`, 'i');
+  state.schema.hydrate = `[${config.schema}-hydrate]`;
+  state.schema.href = `a:not([${config.schema}-disable]):not([href^="#"])`;
+  state.schema.track = `[${config.schema}-track]:not([${config.schema}-track=false])`;
+
+  state.schema.scripts = `script:not([${config.schema}-eval=false])`;
+  state.schema.styles = `style:not([${config.schema}-eval=false])`;
+  state.schema.stylelink = `link[rel=stylesheet]:not([${config.schema}-eval=false])`;
 
   if (typeof config.intersect === 'object') {
-    state.schema.intersect = `[${attr}-intersect]:not([${attr}-intersect=false])`;
+    state.schema.intersect = `[${config.schema}-intersect]:not([${config.schema}-intersect=false])`;
     state.schema.interhref = join(
       'a',
-      `:not([${attr}-disable])`,
-      `:not(a[${attr}-intersect=false])`,
+      `:not([${config.schema}-disable])`,
+      `:not(a[${config.schema}-intersect=false])`,
       ':not([href^="#"])'
     );
   }
@@ -28,9 +29,9 @@ function selectors (config: IConfig) {
   if (typeof config.proximity === 'object') {
     state.schema.proximity = join(
       'a',
-      `[${attr}-proximity]`,
-      `:not([${attr}-proximity=false])`,
-      `:not([${attr}-disable])`,
+      `[${config.schema}-proximity]`,
+      `:not([${config.schema}-proximity=false])`,
+      `:not([${config.schema}-disable])`,
       ':not([href^="#"])'
     );
   }
@@ -39,16 +40,18 @@ function selectors (config: IConfig) {
 
     state.schema.mouseover = config.hover.trigger === 'href' ? join(
       'a',
-      `:not([${attr}-disable])`,
-      `:not([${attr}-hover=false])`,
+      `:not([${config.schema}-disable])`,
+      `:not([${config.schema}-hover=false])`,
+      `:not([${config.schema}-intersect])`,
+      `:not([${config.schema}-proximity])`,
       ':not([href^="#"])'
     ) : join(
       'a',
-      `[${attr}-hover]`,
-      `:not([${attr}-intersect])`,
-      `:not([${attr}-proximity])`,
-      `:not([${attr}-disable])`,
-      `:not([${attr}-hover=false])`,
+      `[${config.schema}-hover]`,
+      `:not([${config.schema}-intersect])`,
+      `:not([${config.schema}-proximity])`,
+      `:not([${config.schema}-disable])`,
+      `:not([${config.schema}-hover=false])`,
       ':not([href^="#"])'
     );
 
@@ -87,6 +90,7 @@ export function initialize (options: Options = {}): IConfig {
 
   // Merge Configuration
   const config = assign(state.config, options);
+  config.schema = config.schema === null ? 'data' : `data-${config.schema}`;
 
   // Setup Selectors
   selectors(config);

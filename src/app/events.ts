@@ -1,21 +1,9 @@
+/* eslint-disable no-unused-vars */
+
+import { EventNames, EmitterArguments } from 'types';
 import { events } from './state';
 import { forEach } from './utils';
-/**
- * Pjax Events
- */
-export type EventNames = (
-  | 'connected'
-  | 'prefetch'
-  | 'trigger'
-  | 'click'
-  | 'request'
-  | 'cache'
-  | 'hydrate'
-  | 'tracked'
-  | 'render'
-  | 'script'
-  | 'load'
- );
+import { parse } from './dom';
 
 /**
  * Emit Event
@@ -23,18 +11,31 @@ export type EventNames = (
  * Private function use for emitting events
  * which users are subscribed.
  */
-export function emit (name: EventNames, ...args: any[]) {
+export function emit <T extends EventNames> (name: T, ...args: EmitterArguments<T>) {
 
-  const data = [].slice.call(arguments, 1);
+  const isCache = name === 'cache';
 
-  let run = true;
+  if (isCache) args.splice(-1, 1, parse(args[args.length - 1] as string) as any);
+
+  let returns: boolean | string = true;
 
   forEach(argument => {
-    const cb = argument.apply(null, data);
-    if (cb === false) run = false;
+
+    const returned = argument.apply(null, args);
+
+    if (isCache) {
+      if (returned instanceof Document) {
+        returns = returned.documentElement.outerHTML;
+      } else {
+        if (typeof returns !== 'string') returns = returned !== false;
+      }
+    } else {
+      returns = returned !== false;
+    }
+
   }, events[name] || []);
 
-  return run;
+  return returns;
 
 }
 

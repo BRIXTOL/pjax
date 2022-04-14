@@ -184,33 +184,6 @@ export function forEach (
 }
 
 /**
- * Get Element attributes
- */
-export function getElementAttrs (
-  { attributes }: Element,
-  {
-    exclude = [],
-    include = []
-  }: {
-    exclude?: string[],
-    include?: Array<[
-      name: string,
-      value: string
-    ]>
-  }
-): Array<[
-  name: string,
-  value: string
-]> {
-
-  forEach(({ name = null, value = null }) => {
-    if (name && value && !exclude.includes(name)) include.push([ name, value ]);
-  }, toArray(attributes));
-
-  return include;
-}
-
-/**
  * Returns a list of link elements to be prefetched. Filters out
  * any links which exist in cache to prevent extrenous transit.
  */

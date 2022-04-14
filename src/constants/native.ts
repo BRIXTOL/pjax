@@ -1,3 +1,10 @@
+import { createBrowserHistory } from 'history';
+
+/**
+ * History instance
+ */
+export const history = createBrowserHistory();
+
 /**
  * Cached `Object.assign`
  */

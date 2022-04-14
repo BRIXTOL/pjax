@@ -9,6 +9,7 @@ import * as request from '../app/request';
 import * as render from '../app/render';
 import * as store from '../app/store';
 import * as history from './history';
+import { EventType } from '../constants/enums';
 
 /**
  * Handles a clicked link, prevents special click types.
@@ -79,12 +80,11 @@ function handleTrigger (event: MouseEvent): void {
 
     // CANCEL PENDING REQUESTS
     if (route.key in transit) {
-      console.log(transit, keys(transit));
       if (keys(transit).length > 1) request.cancel(route.key);
     }
 
     // TRIGGERS FETCH
-    request.get(store.create(route));
+    request.get(store.create(route), EventType.TRIGGER);
 
     // WAIT FOR CLICK
     target.addEventListener('click', onClick(target, route.key), false);
@@ -103,7 +103,8 @@ export async function navigate (urlOrState: string, state: IPage | false = false
       state.cache === 'clear' ? store.clear() : store.clear(state.key);
     }
 
-    const page = await request.get(state);
+    const page = await request.get(state, EventType.TRIGGER);
+
     if (page) return render.update(page);
 
   } else {
@@ -111,7 +112,6 @@ export async function navigate (urlOrState: string, state: IPage | false = false
     if ((await request.inFlight(urlOrState))) {
       return render.update(pages[urlOrState]);
     } else {
-      console.log('aborted');
       request.abort(urlOrState);
     }
 

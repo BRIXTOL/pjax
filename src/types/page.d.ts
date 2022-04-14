@@ -1,5 +1,5 @@
 import { ILocation } from './location';
-
+import type { StoreType } from '../constants/enums';
 /**
  * Pjax Events
  */
@@ -68,10 +68,10 @@ export interface IPage {
   title?: string;
 
   /**
-   * A temporary field value the infers upon an action that has or is
-   * taking place. It can be referenced within dispatched events.
+   * A storage type number reference which determines how the
+   * record was saved. Used internally.
    */
-  type?: string;
+  type?: StoreType;
 
   /**
    * Should this fetch be pushed to history

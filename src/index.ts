@@ -1,7 +1,8 @@
-import { IConfig } from 'types';
+import { IConfig, IPage } from 'types';
 import { initialize } from './app/config';
 import { getRoute, origin } from './app/route';
-import { IPage } from './types/page';
+import { parse } from './app/dom';
+import { EventType, StoreType } from './constants/enums';
 import { assign, create } from './constants/native';
 import * as store from './app/store';
 import * as hrefs from './observers/hrefs';
@@ -64,7 +65,7 @@ export function session () {
 export async function reload () {
 
   const state = store.cache('page') as IPage;
-  const page = await request.get(state);
+  const page = await request.get(state, EventType.RELOAD);
 
   if (page) {
     console.info('Pjax: Triggered reload, page was re-cached');
@@ -99,7 +100,7 @@ export function cache (key?: string) {
 /**
  * Flush Cache
  */
-export async function fetch (url: string, { parsed = false } = { parsed: false }) {
+export async function fetch (url: string) {
 
   const link = getRoute(url);
 
@@ -109,7 +110,7 @@ export async function fetch (url: string, { parsed = false } = { parsed: false }
 
   const response = await request.httpRequest(link.key);
 
-  if (response) return parsed ? render.parse(response) : response;
+  if (response) return parse(response);
 
 }
 
@@ -132,7 +133,7 @@ export async function hydrate (link: string, elements: string[]): Promise<void|I
 
   route.hydrate = elements;
   route.position = scroll.position();
-  route.type = 'hydrate';
+  route.type = StoreType.HYDRATE;
 
   const dom = await request.httpRequest(link);
 
@@ -141,8 +142,8 @@ export async function hydrate (link: string, elements: string[]): Promise<void|I
   const update = render.update(store.update(route, dom));
 
   if (state.config.reverse) {
-    const route = getRoute(last.page.location.lastpath, 'preload');
-    request.get(route);
+    const route = getRoute(last.page.location.lastpath, StoreType.REVERSE);
+    request.get(route, EventType.REVERSE);
   }
 
   return update;
@@ -161,11 +162,11 @@ export async function prefetch (link: string | Element): Promise<void|IPage> {
     return;
   }
 
-  const prefetch = await request.get(store.create(path));
+  const prefetch = await request.get(store.create(path), EventType.PREFETCH);
 
-  if (!prefetch) {
-    console.warn(`Pjax: Prefetch failed for ${path.key}`);
-  }
+  if (prefetch) return prefetch;
+
+  console.warn(`Pjax: Prefetch failed for ${path.key}`);
 
 };
 

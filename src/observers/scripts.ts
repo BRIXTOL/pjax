@@ -17,7 +17,9 @@ function evaluator (exec: ReturnType<typeof scriptTag>): Promise<void> {
     script.async = false;
     script.text = exec.target.text;
 
-    for (const { nodeName, nodeValue } of exec.target.attributes) script.setAttribute(nodeName, nodeValue);
+    for (const { nodeName, nodeValue } of exec.target.attributes) {
+      script.setAttribute(nodeName, nodeValue);
+    }
 
     if (document.contains(exec.target)) {
       exec.target.replaceWith(script);
@@ -26,7 +28,9 @@ function evaluator (exec: ReturnType<typeof scriptTag>): Promise<void> {
       exec.external ? script.addEventListener('load', () => script.remove()) : script.remove();
     }
 
-    exec.external ? script.addEventListener('load', () => resolve()) : resolve();
+    exec.external
+      ? script.addEventListener('load', () => resolve())
+      : resolve();
 
   });
 

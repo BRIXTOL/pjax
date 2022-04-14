@@ -1,12 +1,12 @@
 import { IPage } from 'types';
-import history from 'history/browser';
 import { BrowserHistory, createPath } from 'history';
 import * as render from '../app/render';
 import * as request from '../app/request';
 import * as store from '../app/store';
 import * as scroll from './scroll';
 import { connect, pages } from '../app/state';
-import { assign } from '../constants/native';
+import { assign, history } from '../constants/native';
+import { EventType, StoreType } from '../constants/enums';
 
 /**
  * Listener state
@@ -87,13 +87,13 @@ async function popstate (url: string, state: IPage): Promise<void|IPage> {
   if (url !== inTransit) request.abort(inTransit);
 
   if (store.has(url)) {
-    if (state.type !== null && state.type === 'reverse') pages[url].position = state.position;
+    if (state.type !== null && state.type === StoreType.REVERSE) pages[url].position = state.position;
     return render.update(pages[url], true);
   }
 
   inTransit = url;
 
-  const page = await request.get(state);
+  const page = await request.get(state, EventType.POPSTATE);
 
   return page ? render.update(page, true) : location.assign(url);
 

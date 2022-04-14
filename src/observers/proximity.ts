@@ -1,10 +1,13 @@
-import { IPage } from 'types';
-import { config, connect, schema, timers } from '../app/state';
-import { getTargets, emptyObject } from '../app/utils';
+import { supportsPointerEvents } from 'detect-it';
+import { config, connect, schema } from '../app/state';
+import { getTargets } from '../app/utils';
 import { create } from '../constants/native';
+import { isNumber } from '../constants/regexp';
 import { getRoute } from '../app/route';
+import { emit } from '../app/events';
 import * as store from '../app/store';
 import * as request from '../app/request';
+import { EventType, StoreType } from '../constants/enums';
 
 /**
  * Detects is the cursor (mouse) is in range of a
@@ -23,16 +26,18 @@ function inRange ({ clientX, clientY }: MouseEvent, bounds: {
     clientY >= bounds.top;
 }
 
-function setHrefBounds (target: HTMLLinkElement) {
+function setBounds (target: HTMLLinkElement) {
 
   const o = create(null);
   const rect = target.getBoundingClientRect();
+  const attr = target.getAttribute(`${config.schema}-proximity`);
+  const distance = isNumber.test(attr) ? Number(attr) : config.proximity.distance;
 
-  o.state = getRoute(target);
-  o.top = rect.top - (o.state.proximity || config.proximity.distance);
-  o.bottom = rect.bottom + (o.state.proximity || config.proximity.distance);
-  o.left = rect.left - (o.state.proximity || config.proximity.distance);
-  o.right = rect.right + (o.state.proximity || config.proximity.distance);
+  o.target = target;
+  o.top = rect.top - distance;
+  o.bottom = rect.bottom + distance;
+  o.left = rect.left - distance;
+  o.right = rect.right + distance;
 
   return o;
 
@@ -43,7 +48,7 @@ function setHrefBounds (target: HTMLLinkElement) {
  * bounds. One distance is a fetch is triggered.
  */
 function observer (targets?: {
-  get state(): IPage;
+  target: Element,
   top: number;
   bottom: number;
   left: number;
@@ -61,14 +66,19 @@ function observer (targets?: {
     const node = targets.findIndex(node => inRange(event, node));
 
     if (node === -1) {
+
       setTimeout(() => { wait = false; }, config.proximity.throttle);
+
     } else {
 
-      const state = store.create(targets[node].state);
+      const { target } = targets[node];
+      const page = store.create(getRoute(target, StoreType.PREFETCH));
 
-      request.throttle(state.key, async () => {
+      request.throttle(page.key, async () => {
 
-        const prefetch = await request.get(state);
+        if (!emit('prefetch', target, page, EventType.PROXIMITY)) return stop();
+
+        const prefetch = await request.get(page, EventType.PROXIMITY);
 
         if (prefetch) {
 
@@ -77,11 +87,11 @@ function observer (targets?: {
 
           if (targets.length === 0) {
             stop();
-            console.info('Pjax: Proximity observer has disconnected');
+            console.info('Brixtol Pjax: Proximity observer has disconnected');
           }
         }
 
-      }, state.threshold || config.proximity.threshold);
+      }, page.threshold || config.proximity.threshold);
     }
   };
 }
@@ -94,31 +104,38 @@ let entries: ReturnType<typeof observer>;
  */
 export function start (): void {
 
-  if (!config.proximity) return;
-  if (connect.has(7)) return;
+  if (!config.proximity || connect.has(7)) return;
 
-  const targets = getTargets(schema.proximity).map(setHrefBounds);
+  const targets = getTargets(schema.proximity).map(setBounds);
 
   if (targets.length > 0) {
+
     entries = observer(targets);
-    addEventListener('mousemove', entries, false);
+
+    if (supportsPointerEvents) {
+      addEventListener('pointermove', entries, false);
+    } else {
+      addEventListener('mousemove', entries, false);
+    }
+
     connect.add(7);
   }
 
 }
 
 /**
- * Stops prefetch, will disconnect `IntersectionObserver` and
- * remove any event listeners or transits.
+ * Stops prefetch, will remove pointer move event listener
  */
 export function stop (): void {
 
   if (!connect.has(7)) return;
 
-  emptyObject(timers);
-  removeEventListener('mousemove', entries, false);
+  if (supportsPointerEvents) {
+    removeEventListener('pointermove', entries, false);
+  } else {
+    removeEventListener('mousemove', entries, false);
+  }
+
   connect.delete(7);
 
 };
-
-// mouseNear.destory()

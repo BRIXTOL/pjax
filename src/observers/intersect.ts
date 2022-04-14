@@ -4,6 +4,7 @@ import { getRoute } from '../app/route';
 import { config, connect, schema } from '../app/state';
 import * as request from '../app/request';
 import * as store from '../app/store';
+import { EventType, StoreType } from '../constants/enums';
 
 /**
  * @type IntersectionObserver
@@ -17,13 +18,13 @@ async function onIntersect (entry: IntersectionObserverEntry): Promise<void> {
 
   if (entry.isIntersecting) {
 
-    const route = getRoute(entry.target, 'intersect');
+    const route = getRoute(entry.target, StoreType.PREFETCH);
 
-    if (!emit('prefetch', entry.target, route, 'intersect')) {
+    if (!emit('prefetch', entry.target, route, EventType.INTERSECT)) {
       return entries.unobserve(entry.target);
     }
 
-    const response = await request.get(store.create(route));
+    const response = await request.get(store.create(route), EventType.INTERSECT);
 
     if (response) {
       entries.unobserve(entry.target);
@@ -40,8 +41,7 @@ async function onIntersect (entry: IntersectionObserverEntry): Promise<void> {
  */
 export function start (): void {
 
-  if (!config.intersect) return;
-  if (connect.has(5)) return;
+  if (!config.intersect || connect.has(5)) return;
 
   entries = new IntersectionObserver(forEach(onIntersect));
   forEach(entries.observe, getNodeTargets(schema.intersect, schema.interhref));
@@ -55,9 +55,9 @@ export function start (): void {
  */
 export function stop (): void {
 
-  if (connect.has(5)) {
-    entries.disconnect();
-    connect.has(5);
-  }
+  if (!connect.has(5)) return;
+
+  entries.disconnect();
+  connect.has(5);
 
 };

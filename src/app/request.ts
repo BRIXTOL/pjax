@@ -5,6 +5,7 @@ import * as progress from './progress';
 import { config, transit, timers } from './state';
 import * as store from './store';
 import { create } from '../constants/native';
+import { EventType } from 'types';
 
 let storage: number = 0;
 
@@ -21,32 +22,11 @@ function pending (callback: Function): Promise<boolean> {
  * Executes on request end. Removes the XHR recrod and update
  * the response DOMString cache size record.
  */
-function httpRequestEnd (url: string, DOMString: string) {
+async function httpRequestEnd (url: string, DOMString: string) {
 
-  delete transit[url];
   storage = storage + byteSize(DOMString);
 
 };
-
-/**
- * Fetch Throttle
- */
-export function throttle (url: string, fn: () => void, delay: number): void {
-
-  if (url in timers) return;
-  if (!store.has(url)) timers[url] = setTimeout(fn, delay);
-
-};
-
-/**
- * Cleanup throttlers
- */
-export function cleanup (url: string) {
-
-  clearTimeout(timers[url]);
-  return delete timers[url];
-
-}
 
 /**
  * Fetch XHR Request wrapper function
@@ -68,10 +48,19 @@ export function httpRequest (url: string): Promise<string | false> {
 
     // EVENTS
     //
-    xhr.onloadstart = e => (transit[url] = xhr);
-    xhr.onload = e => resolve(xhr.status === 200 ? xhr.responseText : false);
-    xhr.onloadend = e => httpRequestEnd(url, xhr.responseText);
-    xhr.onabort = e => delete transit[url];
+    xhr.onloadstart = e => {
+      transit[url] = xhr;
+    };
+    xhr.onload = e => {
+      resolve(xhr.status === 200 ? xhr.responseText : false);
+    };
+    xhr.onabort = e => {
+      delete transit[url];
+    };
+    xhr.onloadend = e => {
+      delete transit[url];
+      httpRequestEnd(url, xhr.responseText);
+    };
 
     xhr.onerror = reject;
     xhr.timeout = config.timeout;
@@ -84,6 +73,29 @@ export function httpRequest (url: string): Promise<string | false> {
   });
 
 };
+
+/**
+ * Fetch Throttle
+ */
+export function throttle (url: string, fn: () => void, delay: number): void {
+
+  if (url in timers) return;
+  if (!store.has(url)) timers[url] = setTimeout(fn, delay);
+
+};
+
+/**
+ * Cleanup throttlers
+ */
+export function cleanup (url: string) {
+
+  if (url in timers) {
+    clearTimeout(timers[url]);
+    return delete timers[url];
+  }
+
+  return true;
+}
 
 /**
  * Returns request cache metrics
@@ -143,7 +155,7 @@ export function cancel (id: string): void {
 export async function inFlight (url: string, rate = 0): Promise<boolean> {
 
   if ((url in transit) && rate <= config.timeout) {
-    if ((rate * 10) === config.progress.threshold) progress.start();
+    if ((rate * 5) === config.progress.threshold) progress.start();
     rate++;
     return pending(() => inFlight(url, rate));
   }
@@ -157,14 +169,14 @@ export async function inFlight (url: string, rate = 0): Promise<boolean> {
  * from being dispatched if an indentical fetch is in flight.
  * transit will always save responses and snapshots.
  */
-export async function get (state: IPage): Promise<IPage|false> {
+export async function get (state: IPage, type: EventType): Promise<IPage|false> {
 
   if (state.key in transit) {
     console.warn(`Pjax: XHR Request is already in transit for: ${state.key}`);
     return;
   }
 
-  if (!emit('request', state)) {
+  if (!emit('request', state, type)) {
     console.info(`Pjax: Request cancelled via dispatched event for: ${state.key}`);
     return false;
   }

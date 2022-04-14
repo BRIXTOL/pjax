@@ -1,44 +1,38 @@
-import history from 'history/browser';
 import { emit } from './events';
+import { parse } from './dom';
 import { IPage } from '../types/page';
 import { schema, tracked, config, snaps } from './state';
 import * as store from './store';
 import * as mouseover from '../observers/hover';
 import * as intersect from '../observers/intersect';
 import { evaljs } from '../observers/scripts';
-import { toArray } from '../constants/native';
+import { StoreType } from '../constants/enums';
+import { toArray, history } from '../constants/native';
 import * as progress from './progress';
-// import * as proximity from '../observers/proximity';
+import * as proximity from '../observers/proximity';
 
 /**
- * DOM Parser
+ * Node Positions
  */
-const DOMParse: DOMParser = new DOMParser();
+function nodePosition (a: Element, b: Element) {
 
-/**
- * Haad Nodes
- *
- * Executes `<head></head>` element replacements
- * and evaluations.
- */
-async function headNodes (target: HTMLHeadElement) {
-
-  const scripts: HTMLScriptElement[] = toArray(target.querySelectorAll(schema.eval));
-
-  scripts.sort((a, b) => a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING || -1);
-
-  await evaljs(scripts);
+  return a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING || -1;
 
 }
 
 /**
- * Parse HTML document string from request response
- * using `parser()` method. Cached pages will pass
- * the saved response here.
+ * Script Nodes
+ *
+ * Executes `<script>` node javascript
+ * evaluations and loading.
  */
-export function parse (HTMLString: string): Document {
+async function scriptNodes (target: HTMLHeadElement) {
 
-  return DOMParse.parseFromString(HTMLString, 'text/html');
+  const scripts: HTMLScriptElement[] = toArray(target.querySelectorAll(schema.scripts));
+
+  scripts.sort(nodePosition);
+
+  await evaljs(scripts);
 
 }
 
@@ -137,7 +131,7 @@ function hydrateNodes (state: IPage, target: Document): void {
   }
 
   state.history = undefined;
-  state.type = 'visit';
+  state.type = StoreType.VISIT;
 
   store.update(state);
   store.purge([ state.key ]);
@@ -154,14 +148,14 @@ export function update (state: IPage, popstate?: boolean): IPage {
 
   if (config.hover !== false) mouseover.stop();
   if (config.intersect !== false) intersect.stop();
-  // if (config.proximity !== false) proximity.stop();
+  if (config.proximity !== false) proximity.stop();
 
   const target = parse(snaps[state.snapshot]);
   state.title = document.title = target.title || '';
 
-  headNodes(target.head);
+  // styleNodes(target.head);
 
-  if (state.hydrate) {
+  if (state.type === StoreType.HYDRATE) {
 
     hydrateNodes(state, target);
 
@@ -184,11 +178,13 @@ export function update (state: IPage, popstate?: boolean): IPage {
     }
   }
 
+  scriptNodes(target.head);
+
   progress.done();
 
   if (config.hover !== false) mouseover.start();
   if (config.intersect !== false) intersect.start();
-  // if (config.proximity !== false) proximity.start();
+  if (config.proximity !== false) proximity.start();
 
   emit('load', state);
 

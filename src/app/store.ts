@@ -6,6 +6,7 @@ import { assign, create as object, isArray } from '../constants/native';
 import { pages, snaps, config } from './state';
 import { ILocation } from 'types';
 import * as scroll from '../observers/scroll';
+import { StoreType } from '../constants/enums';
 
 /**
  * Clear
@@ -47,7 +48,7 @@ export function create (state?: IPage): IPage {
 
   page.key = null;
   page.history = true;
-  page.type = 'visit';
+  page.type = StoreType.VISIT;
   page.title = document.title;
   page.replace = config.targets;
   page.cache = config.cache;
@@ -97,12 +98,18 @@ export function cache (record?: 'page' | 'snapshot' | 'location') {
  */
 export function set (state: IPage, snapshot: string): IPage {
 
-  if (!emit('cache', state, snapshot)) return;
+  const event = emit('cache', state, snapshot);
+
+  if (event === false) return;
 
   pages[state.key] = state;
   cache.prototype.key = state.key;
 
-  if (state.cache) snaps[state.snapshot] = snapshot;
+  if (state.cache) {
+    snaps[state.snapshot] = typeof event === 'string'
+      ? event
+      : snapshot;
+  }
 
   return state;
 
