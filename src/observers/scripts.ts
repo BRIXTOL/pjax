@@ -1,5 +1,5 @@
-import { create, toArray } from '../constants/native';
-import { MimeType } from '../constants/regexp';
+import { object, toArray } from '../shared/native';
+import { MimeType } from '../shared/regexp';
 
 /**
  * Evaluate JavaScript
@@ -54,7 +54,7 @@ function scriptTag (tag: HTMLScriptElement) {
     external: boolean;
     evaluate: boolean;
     blocking: boolean;
-  } = create(null);
+  } = object(null);
 
   exec.blocking = true;
   exec.evaluate = false;

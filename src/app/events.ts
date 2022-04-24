@@ -1,9 +1,17 @@
 /* eslint-disable no-unused-vars */
 
 import { EventNames, EmitterArguments } from 'types';
-import { events } from './state';
-import { forEach } from './utils';
-import { parse } from './dom';
+import { forEach } from '../shared/utils';
+import { object } from '../shared/native';
+import { parse } from '../shared/dom';
+
+/**
+ * Events Model
+ *
+ * Holds an object reference for every event
+ * emitted. Used by the event emitter operations
+ */
+const events: { [name: string]: Array<() => void | boolean> } = object(null);
 
 /**
  * Emit Event
@@ -13,7 +21,7 @@ import { parse } from './dom';
  */
 export function emit <T extends EventNames> (name: T, ...args: EmitterArguments<T>) {
 
-  const isCache = name === 'cache';
+  const isCache = name === 'store';
 
   if (isCache) args.splice(-1, 1, parse(args[args.length - 1] as string) as any);
 
@@ -32,7 +40,6 @@ export function emit <T extends EventNames> (name: T, ...args: EmitterArguments<
     } else {
       returns = returned !== false;
     }
-
   }, events[name] || []);
 
   return returns;
@@ -42,7 +49,7 @@ export function emit <T extends EventNames> (name: T, ...args: EmitterArguments<
 /**
  * On Event
  *
- * Exposed as public method on `pjax`
+ * Exposed as public method on `spx`
  */
 export function on (name: EventNames, callback: () => void) {
 
@@ -55,7 +62,7 @@ export function on (name: EventNames, callback: () => void) {
 /**
  * Off Event
  *
- * Exposed as public method on `pjax`
+ * Exposed as public method on `spx`
  */
 export function off (name: EventNames, callback: () => void) {
 

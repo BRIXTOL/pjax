@@ -1,6 +1,14 @@
 import { IPosition } from '../types/page';
-import * as state from '../app/state';
-import { create } from '../constants/native';
+import { observers } from '../app/session';
+import { object } from '../shared/native';
+
+/**
+ * Position
+ *
+ * Holds the current position page offset radius.
+ * The scroll position is updated and saved here.
+ */
+const pos: IPosition = object(null);
 
 /**
  * Returns to current scroll position, the `reset()`
@@ -15,7 +23,7 @@ let ticking: boolean = false;
  */
 export function position (): IPosition {
 
-  return state.position;
+  return pos;
 
 }
 
@@ -23,10 +31,10 @@ export function position (): IPosition {
  * onScroll event, asserts the current X and Y page
  * offset position of the document
  */
-export function onscroll (): void {
+export function scroll (): void {
 
-  state.position.y = window.scrollY;
-  state.position.x = window.scrollX;
+  pos.y = window.scrollY;
+  pos.x = window.scrollX;
 
   if (!ticking) {
     requestAnimationFrame(position);
@@ -43,51 +51,36 @@ export function reset (): IPosition {
 
   ticking = false;
 
-  state.position.x = 0;
-  state.position.y = 0;
+  pos.x = 0;
+  pos.y = 0;
 
-  return state.position;
-
-}
-
-/**
- * Returns a faux scroll position. This prevents the
- * tracked scroll position from being overwritten and is
- * used within functions like `href.attrparse`
- */
-export function y0x0 (): IPosition {
-
-  const position = create(null);
-
-  position.x = 0;
-  position.y = 0;
-
-  return position;
+  return pos;
 
 }
 
 /**
  * Attached `scroll` event listener.
  */
-export function start (): void {
+export function connect (): void {
 
-  if (state.connect.has(6)) return;
+  if (observers.scroll) return;
 
-  onscroll();
-  addEventListener('scroll', onscroll, { passive: true });
-  state.connect.add(6);
+  addEventListener('scroll', scroll, { passive: true });
+
+  observers.scroll = true;
 
 }
 
 /**
  * Removed `scroll` event listener.
  */
-export function stop (): void {
+export function disconnect (): void {
 
-  if (!state.connect.has(6)) return;
+  if (!observers.scroll) return;
 
   removeEventListener('scroll', onscroll, false);
   reset();
-  state.connect.delete(6);
+
+  observers.scroll = false;
 
 }

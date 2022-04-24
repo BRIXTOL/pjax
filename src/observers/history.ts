@@ -1,101 +1,131 @@
-import { IPage } from 'types';
-import { BrowserHistory, createPath } from 'history';
+import { HistoryState, IPage } from 'types';
+import { pages, observers, config, snapshots } from '../app/session';
+import { history, object } from '../shared/native';
+import { hasProp } from '../shared/utils';
 import * as render from '../app/render';
-import * as request from '../app/request';
+import * as request from '../app/fetch';
 import * as store from '../app/store';
 import * as scroll from './scroll';
-import { connect, pages } from '../app/state';
-import { assign, history } from '../constants/native';
-import { EventType, StoreType } from '../constants/enums';
+import { EventType } from '../shared/enums';
+import { getKey, getRoute } from '../app/route';
 
 /**
- * Listener state
+ * History API - Re-export of the `window.history` native constant
  */
-let unlisten: () => void = null;
+export { history as api } from '../shared/native';
 
 /**
- * Determines if page is in transit
+ * The state reference to be populated and saved in the browser state.
+ * This is a partial copy of the in-memory page state. The function
+ * will omit render specific options that could otherwise be applied
+ * via attribute annotation.
  */
-let inTransit: string;
+function stack (page: IPage) {
 
-/**
- * Create history state
- *
- * Triggers a history replace action saving
- * the current page state to history.
- */
-export function create (state: IPage) {
+  const state: HistoryState = object(null);
 
-  history.replace(history.location, state);
+  state.key = page.key;
+  state.rev = page.rev;
+  state.title = page.title;
+  state.uuid = page.uuid;
+  state.cache = page.cache;
+  state.replace = page.replace;
+  state.type = page.type;
+  state.progress = page.progress;
+  state.position = scroll.reset();
 
-  return history.location.state;
+  return state;
+}
 
+function load () {
+
+  return document.readyState === 'complete';
 }
 
 /**
- * Create history state
+ * Returns History State
  */
 export function get () {
 
-  return history.location.state;
+  return history.state;
 
 }
 
 /**
- * Check if history state holds lastpath
+ * Check if history state holds reverse
+ * last path reference. Returns a boolean
+ *
  */
-export function previous () {
+export function reverse () {
 
-  // PERFORM REVERSE CACHING
-  if (history.location.state === null) return false;
-
-  const state = history.location.state as IPage;
-
-  if ('location' in state) {
-    if ('lastpath' in state.location) {
-      return state.location.lastpath;
-    }
-  }
-
-  return false;
+  return (
+    history.state !== null &&
+    hasProp(history.state, 'rev') &&
+    history.state.key !== history.state.rev
+  );
 
 }
 
-/**
- * Execute a history state replacement for the current
- * page location. It's intended use is to update the
- * current scroll position and any other values stored
- * in history state.
- */
-export function update (): IPage {
+export function replace (state: IPage) {
 
-  const update = assign(history.location.state as IPage, { position: scroll.position() });
+  // console.log('REPLACE', state);
 
-  history.replace(history.location, update);
+  history.replaceState(stack(state), state.title, state.key);
 
-  return update;
+  return state;
 
 }
+
+export function push (state: IPage) {
+
+  // console.log('PUSH STATE', state);
+
+  history.pushState(stack(state), state.title, state.key);
+
+  return state;
+
+}
+
+let timeout: NodeJS.Timeout;
 
 /**
  * Popstate Event
  *
  * Fires popstate navigation request
  */
-async function popstate (url: string, state: IPage): Promise<void|IPage> {
+function pop (event: PopStateEvent & { state: HistoryState }, retry?: string) {
 
-  if (url !== inTransit) request.abort(inTransit);
+  if (!load()) return;
 
-  if (store.has(url)) {
-    if (state.type !== null && state.type === StoreType.REVERSE) pages[url].position = state.position;
-    return render.update(pages[url], true);
+  const { state } = event;
+
+  clearInterval(timeout);
+
+  if (store.has(state.key)) {
+    request.reverse(state.rev);
+    return render.update(pages[state.key]);
   }
 
-  inTransit = url;
+  timeout = setTimeout(async function () {
 
-  const page = await request.get(state, EventType.POPSTATE);
+    state.type = EventType.POPSTATE;
 
-  return page ? render.update(page, true) : location.assign(url);
+    const page = await request.fetch(state);
+    if (!page) return location.assign(state.key);
+
+    const key = getKey(location);
+
+    // console.log(state.key, page.key, key);
+
+    if (page.key === key) return render.update(page);
+    if (store.has(key)) return render.update(pages[key]);
+
+    const data = store.create(getRoute(key, EventType.POPSTATE));
+
+    request.fetch(data);
+    history.replaceState(data, document.title, key);
+
+  }, 300);
 
 };
 
@@ -105,9 +135,12 @@ async function popstate (url: string, state: IPage): Promise<void|IPage> {
  * Event History dispatch controller, handles popstate,
  * push and replace events via third party module
  */
-function listener ({ action, location }: BrowserHistory) {
 
-  if (action === 'POP') return popstate(createPath(location), location.state);
+// eslint-disable-next-line no-unused-vars
+function persist ({ timeStamp }: BeforeUnloadEvent) {
+
+  // console.log('PERSIST', timeStamp);
+  window.sessionStorage.setItem(config.session, JSON.stringify({ snapshots, pages }));
 
 };
 
@@ -116,12 +149,15 @@ function listener ({ action, location }: BrowserHistory) {
  *
  * Attached `history` event listener.
  */
-export function start (): void {
+export function connect (): void {
 
-  if (!connect.has(2)) {
-    unlisten = history.listen(listener);
-    connect.add(2);
-  }
+  if (observers.history) return;
+
+  addEventListener('popstate', pop, false);
+  addEventListener('load', load, false);
+  // addEventListener('beforeunload', persist, { capture: true });
+
+  observers.history = true;
 
 }
 
@@ -130,11 +166,14 @@ export function start (): void {
  *
  * Removed `history` event listener.
  */
-export function stop (): void {
+export function disconnect (): void {
 
-  if (connect.has(2)) {
-    unlisten();
-    connect.delete(2);
-  }
+  if (!observers.history) return;
+
+  removeEventListener('popstate', pop, false);
+  addEventListener('load', load, false);
+  // removeEventListener('beforeunload', persist, { capture: true });
+
+  observers.history = false;
 
 }

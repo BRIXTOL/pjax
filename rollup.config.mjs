@@ -6,63 +6,41 @@ export default rollup(
     output: [
       {
         format: 'esm',
-        name: 'Pjax',
         exports: 'named',
-        file: 'package/pjax.mjs',
-        sourcemap: false,
-        esModule: true,
-        freeze: false,
-        preferConst: true
-      },
-      {
-        format: 'umd',
-        name: 'Pjax',
-        exports: 'named',
-        file: 'package/pjax.js',
+        file: 'package/spx.js',
         sourcemap: false,
         esModule: true,
         freeze: false,
         preferConst: true
       }
     ],
-    treeshake: 'smallest',
-    plugins: env.if('dev')(
-      [
-        plugin.esbuild({
-          minify: true,
-          optimizeDeps: {
-            esbuildOptions: {
-              format: 'esm',
-              bundle: true,
-              treeShaking: true,
-              platform: 'browser',
-              minify: true
-            },
-            include: [
-              'history',
-              'nanoid',
-              'detect-it'
-            ]
-          }
-        }),
-
-        plugin.copy(
-          {
-            copyOnce: env.watch,
-            onlyFiles: true,
-            targets: [
-              {
-                src: 'src/types/*',
-                dest: 'package/types'
-              }
-            ]
-          }
-        )
-      ]
-    )(
-      [
-        plugin.filesize()
-      ]
-    )
+    plugins: [
+      plugin.esbuild({
+        optimizeDeps: {
+          esbuildOptions: {
+            format: 'esm',
+            bundle: true,
+            treeShaking: true,
+            platform: 'browser'
+          },
+          include: [
+            'detect-it'
+          ]
+        }
+      }),
+      plugin.copy(
+        {
+          copyOnce: env.watch,
+          onlyFiles: true,
+          targets: [
+            {
+              src: 'src/types/*',
+              dest: 'package/types'
+            }
+          ]
+        }
+      ),
+      plugin.filesize()
+    ]
   }
 );

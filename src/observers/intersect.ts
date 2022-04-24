@@ -1,10 +1,11 @@
-import { forEach, getNodeTargets } from '../app/utils';
+import { forEach, log } from '../shared/utils';
+import { getNodeTargets } from '../shared/links';
+import { config, observers, selectors } from '../app/session';
 import { emit } from '../app/events';
 import { getRoute } from '../app/route';
-import { config, connect, schema } from '../app/state';
-import * as request from '../app/request';
+import * as request from '../app/fetch';
 import * as store from '../app/store';
-import { EventType, StoreType } from '../constants/enums';
+import { Errors, EventType } from '../shared/enums';
 
 /**
  * @type IntersectionObserver
@@ -18,18 +19,16 @@ async function onIntersect (entry: IntersectionObserverEntry): Promise<void> {
 
   if (entry.isIntersecting) {
 
-    const route = getRoute(entry.target, StoreType.PREFETCH);
+    const route = getRoute(entry.target, EventType.INTERSECT);
 
-    if (!emit('prefetch', entry.target, route, EventType.INTERSECT)) {
-      return entries.unobserve(entry.target);
-    }
+    if (!emit('prefetch', entry.target, route)) return entries.unobserve(entry.target);
 
-    const response = await request.get(store.create(route), EventType.INTERSECT);
+    const response = await request.fetch(store.create(route));
 
     if (response) {
       entries.unobserve(entry.target);
     } else {
-      console.warn(`Pjax: Prefetch will retry at next intersect for: ${route.key}`);
+      log(Errors.WARN, `Prefetch will retry at next intersect for: ${route.key}`);
       entries.observe(entry.target);
     }
   }
@@ -39,13 +38,14 @@ async function onIntersect (entry: IntersectionObserverEntry): Promise<void> {
  * Starts prefetch, will initialize `IntersectionObserver` and
  * add event listeners and other logics.
  */
-export function start (): void {
+export function connect (): void {
 
-  if (!config.intersect || connect.has(5)) return;
+  if (!config.intersect || observers.intersect) return;
+  if (!entries) entries = new IntersectionObserver(forEach(onIntersect), config.intersect);
 
-  entries = new IntersectionObserver(forEach(onIntersect));
-  forEach(entries.observe, getNodeTargets(schema.intersect, schema.interhref));
-  connect.add(5);
+  forEach(n => entries.observe(n), getNodeTargets(selectors.intersect, selectors.interHref));
+
+  observers.intersect = true;
 
 }
 
@@ -53,11 +53,12 @@ export function start (): void {
  * Stops prefetch, will disconnect `IntersectionObserver` and
  * remove any event listeners or transits.
  */
-export function stop (): void {
+export function disconnect (): void {
 
-  if (!connect.has(5)) return;
+  if (!observers.intersect) return;
 
   entries.disconnect();
-  connect.has(5);
+
+  observers.intersect = false;
 
 };

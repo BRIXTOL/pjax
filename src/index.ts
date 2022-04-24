@@ -1,17 +1,18 @@
 import { IConfig, IPage } from 'types';
-import { initialize } from './app/config';
-import { getRoute, origin } from './app/route';
-import { parse } from './app/dom';
-import { EventType, StoreType } from './constants/enums';
-import { assign, create } from './constants/native';
+import { config, snapshots, pages, observers, memory, selectors } from './app/session';
+import { log, size } from './shared/utils';
+import { configure } from './app/config';
+import { getRoute, getKey } from './app/route';
+import { parse } from './shared/dom';
+import { Errors, EventType } from './shared/enums';
+import { assign, history, object, origin } from './shared/native';
 import * as store from './app/store';
 import * as hrefs from './observers/hrefs';
-import * as request from './app/request';
+import * as request from './app/fetch';
 import * as controller from './app/controller';
 import * as render from './app/render';
 import * as scroll from './observers/scroll';
-import * as state from './app/state';
-
+import { on, off } from './app/events';
 /**
  * Event Emitters
  */
@@ -21,27 +22,28 @@ export { on, off } from './app/events';
  * Supported
  */
 export const supported = !!(
-  window.history.pushState &&
+  history.pushState &&
   window.requestAnimationFrame &&
   window.addEventListener &&
   window.DOMParser
 );
 
 /**
- * Connect Pjax
+ * Connect SPX
  */
 export function connect (options: IConfig = {}) {
 
-  initialize(options);
+  configure(options);
 
   if (supported) {
     if (/https?/.test(window.location.protocol)) {
       addEventListener('DOMContentLoaded', controller.initialize);
     } else {
-      console.error('Pjax: Invalid protocol, pjax expects https or http protocol');
+      log(Errors.ERROR, 'Invalid protocol, SPX expects https or http protocol');
     }
   } else {
-    console.error('Pjax is not supported by this browser');
+    log(Errors.ERROR, 'Browser is not supported');
+
   }
 
 };
@@ -49,66 +51,100 @@ export function connect (options: IConfig = {}) {
 /**
  * Session
  *
- * Returns the current pjax session
+ * Returns the current SPX session
  */
-export function session () {
+export function session (key?: string, update?: object) {
+
+  if (key) {
+    if (update) {
+      if (key === 'config') configure(update);
+      if (key === 'observers') assign(observers, update);
+    } else {
+      if (key === 'config') return config;
+      if (key === 'observers') return observers;
+      if (key === 'pages') return pages;
+      if (key === 'snapshots') return snapshots;
+      if (key === 'memory') return size(memory.bytes);
+    }
+  }
+
+  const state = object(null);
+
+  state.config = config;
+  state.snapshots = snapshots;
+  state.pages = pages;
+  state.selectors = selectors;
+  state.observers = observers;
+  state.memory = memory;
+  state.memory.size = size(state.memory.bytes);
 
   return state;
 
 }
 
 /**
+ * State Record
+ *
+ * Returns page state
+ */
+export async function state (key?: string | object, update?: object) {
+
+  if (key === undefined) return store.get();
+
+  if (typeof key === 'string') {
+
+    const k = getKey(key);
+
+    if (!store.has(k)) log(Errors.ERROR, `No store exists at: ${k}`);
+
+    const record = store.get(k);
+
+    return update !== undefined
+      ? store.update(assign(record.page, update))
+      : record;
+  }
+
+  if (typeof key === 'object') return store.update(key as IPage);
+
+};
+
+/**
  * Reload
  *
  * Reloads the current page
  */
-export async function reload () {
+export async function reload (options?: Omit<IPage, 'key' | 'location'>) {
 
-  const state = store.cache('page') as IPage;
-  const page = await request.get(state, EventType.RELOAD);
+  const state = pages[history.state.key] as IPage;
+
+  if (options) assign(state, options);
+
+  state.type = EventType.RELOAD;
+  const page = await request.fetch(state);
 
   if (page) {
-    console.info('Pjax: Triggered reload, page was re-cached');
+    log(Errors.INFO, 'Triggered reload, page was re-cached');
     return render.update(page);
   }
 
-  console.warn('Pjax: Reload failed, triggering refresh (cache will be purged)');
+  log(Errors.WARN, 'Reload failed, triggering refresh (cache will be purged)');
 
   return location.assign(state.key);
 
 };
 
 /**
- * Cache
- */
-export function cache (key?: string) {
-
-  const o = create(null);
-
-  if (key) {
-    if (key in state.pages) return store.get(key);
-    else console.error(`Pjax: No store exists for ${key}`);
-  }
-
-  o.state = state.pages;
-  o.snaps = state.snaps;
-  o.size = request.cacheSize();
-
-  return o;
-}
-
-/**
  * Flush Cache
  */
 export async function fetch (url: string) {
 
-  const link = getRoute(url);
+  const link = getRoute(url, EventType.FETCH);
 
   if (link.location.origin !== origin) {
-    return console.error('Pjax: Cross origin fetches are not allowed');
+    log(Errors.ERROR, 'Cross origin fetches are not allowed');
   }
 
-  const response = await request.httpRequest(link.key);
+  const response = await request.request(link.key);
 
   if (response) return parse(response);
 
@@ -123,30 +159,31 @@ export function clear (url?: string) {
 
 }
 
+export async function update (elements: string[]) {
+
+}
+
 /**
  * Hydrate the current document
  */
 export async function hydrate (link: string, elements: string[]): Promise<void|IPage> {
 
-  const route = getRoute();
-  const last = store.get(route.key);
+  const route = getRoute(EventType.HYDRATE);
 
-  route.hydrate = elements;
   route.position = scroll.position();
-  route.type = StoreType.HYDRATE;
+  route.hydrate = elements;
 
-  const dom = await request.httpRequest(link);
+  const dom = await request.request(link);
 
-  if (!dom) return console.warn('Pjax: hydration failed');
+  if (!dom) return log(Errors.WARN, 'Hydration fetch failed');
 
-  const update = render.update(store.update(route, dom));
+  const page = store.has(route.key)
+    ? store.update(route, dom)
+    : store.create(route);
 
-  if (state.config.reverse) {
-    const route = getRoute(last.page.location.lastpath, StoreType.REVERSE);
-    request.get(route, EventType.REVERSE);
-  }
+  request.reverse(route.rev);
 
-  return update;
+  return render.update(page);
 
 };
 
@@ -155,18 +192,18 @@ export async function hydrate (link: string, elements: string[]): Promise<void|I
  */
 export async function prefetch (link: string | Element): Promise<void|IPage> {
 
-  const path = getRoute(link);
+  const path = getRoute(link, EventType.PREFETCH);
 
   if (store.has(path.key)) {
-    console.warn(`Pjax: Cache already exists for ${path.key}, prefetch skipped`);
+    log(Errors.WARN, `Cache already exists for ${path.key}, prefetch skipped`);
     return;
   }
 
-  const prefetch = await request.get(store.create(path), EventType.PREFETCH);
+  const prefetch = await request.fetch(store.create(path));
 
   if (prefetch) return prefetch;
 
-  console.warn(`Pjax: Prefetch failed for ${path.key}`);
+  log(Errors.ERROR, `Prefetch failed for ${path.key}`);
 
 };
 
@@ -192,3 +229,19 @@ export function disconnect () {
   controller.destroy();
 
 }
+
+export default {
+  supported,
+  on,
+  off,
+  connect,
+  session,
+  state,
+  reload,
+  fetch,
+  clear,
+  hydrate,
+  prefetch,
+  visit,
+  disconnect
+};

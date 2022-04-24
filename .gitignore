@@ -1,7 +1,6 @@
 # DIRECTORIES -----------------------
 dist
 public
-package
 !src/public
 node_modules
 versions

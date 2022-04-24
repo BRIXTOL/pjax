@@ -1,11 +1,13 @@
+import { IHover } from 'types';
 import { supportsPointerEvents } from 'detect-it';
-import { getLink, getTargets, forEach, emptyObject } from '../app/utils';
+import { forEach, hasProp } from '../shared/utils';
 import { emit } from '../app/events';
-import { connect, config, schema, timers } from '../app/state';
+import { config, observers, selectors } from '../app/session';
 import * as store from '../app/store';
-import * as request from '../app/request';
+import * as request from '../app/fetch';
 import { getKey, getRoute } from '../app/route';
-import { EventType, StoreType } from '../constants/enums';
+import { getLink, getTargets } from '../shared/links';
+import { EventType } from '../shared/enums';
 
 /**
  * Cancels prefetch, if mouse leaves target before threshold
@@ -14,12 +16,13 @@ import { EventType, StoreType } from '../constants/enums';
  */
 function onMouseLeave (event: MouseEvent) {
 
-  const target = getLink(event.target, schema.mouseover);
+  const target = getLink(event.target, selectors.hover);
 
   if (target) {
     request.cleanup(getKey(target.href));
     handleHover(target);
   }
+
 };
 
 /**
@@ -31,26 +34,27 @@ function onMouseLeave (event: MouseEvent) {
  */
 function onMouseEnter (event: MouseEvent): void {
 
-  const target = getLink(event.target, schema.mouseover);
+  const target = getLink(event.target, selectors.hover);
   if (!target) return;
 
-  const route = getRoute(target, StoreType.PREFETCH);
+  const route = getRoute(target, EventType.HOVER);
 
-  if (route.key in timers) return;
-  if (store.has(route.key)) return disconnect(target);
+  if (hasProp(request.timers, route.key)) return;
+  if (store.has(route.key)) return removeListener(target);
 
   handleLeave(target);
 
   const state = store.create(route);
-  const delay = state.threshold || config.hover.threshold;
+  const delay = state.threshold || (config.hover as IHover).threshold;
 
-  request.throttle(route.key, async () => {
+  request.throttle(route.key, function () {
 
-    if (!emit('prefetch', target, route, EventType.HOVER)) return disconnect(target);
+    if (!emit('prefetch', target, route)) return removeListener(target);
 
-    const prefetch = await request.get(state, EventType.HOVER);
-
-    if (prefetch) disconnect(target);
+    request.fetch(state).then(function (prefetch) {
+      return prefetch
+        ? removeListener(target) : null;
+    });
 
   }, delay);
 
@@ -87,7 +91,7 @@ function handleLeave (target: Element): void {
 /**
  * Adds and/or Removes click events.
  */
-function disconnect (target: EventTarget): void {
+function removeListener (target: EventTarget): void {
 
   if (supportsPointerEvents) {
     target.removeEventListener('pointerenter', onMouseEnter, false);
@@ -100,29 +104,30 @@ function disconnect (target: EventTarget): void {
 
 /**
  * Starts mouseovers, will attach mouseover events
- * to all elements which contain a `data-pjax-prefetch="hover"`
+ * to all elements which contain a `data-spx-prefetch="hover"`
  * data attribute
  */
-export function start (): void {
+export function connect (): void {
 
-  if (!config.hover || connect.has(4)) return;
+  if (!config.hover || observers.hover) return;
 
-  forEach(handleHover, getTargets(schema.mouseover));
-  connect.add(4);
+  forEach(handleHover, getTargets(selectors.hover));
+
+  observers.hover = true;
 
 }
 
 /**
  * Stops mouseovers, will remove all mouseover and mouseout
- * events on elements which contains a `data-pjax-prefetch="hover"`
+ * events on elements which contains a `data-spx-prefetch="hover"`
  * unless target href already exists in cache.
  */
-export function stop (): void {
+export function disconnect (): boolean {
 
-  if (!connect.has(4)) return;
+  if (!observers.hover) return;
 
-  emptyObject(timers);
-  forEach(disconnect, getTargets(schema.mouseover));
-  connect.delete(4);
+  forEach(removeListener, getTargets(selectors.hover));
+
+  observers.hover = false;
 
 };

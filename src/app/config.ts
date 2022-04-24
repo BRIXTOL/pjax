@@ -1,100 +1,95 @@
-import { join } from './utils';
-import { assign } from '../constants/native';
-import * as state from './state';
-import { IConfig, IIntersect, IMouseover, IProximity, Options } from 'types';
+/* eslint-disable no-unused-vars */
 
-function selectors (config: IConfig) {
-
-  const keys = 'hydrate|append|prepend|replace|progress|threshold|position|proximity|hover|history';
-
-  state.schema.attrs = new RegExp(`^${config.schema}-(${keys})$`, 'i');
-  state.schema.hydrate = `[${config.schema}-hydrate]`;
-  state.schema.href = `a:not([${config.schema}-disable]):not([href^="#"])`;
-  state.schema.track = `[${config.schema}-track]:not([${config.schema}-track=false])`;
-
-  state.schema.scripts = `script:not([${config.schema}-eval=false])`;
-  state.schema.styles = `style:not([${config.schema}-eval=false])`;
-  state.schema.stylelink = `link[rel=stylesheet]:not([${config.schema}-eval=false])`;
-
-  if (typeof config.intersect === 'object') {
-    state.schema.intersect = `[${config.schema}-intersect]:not([${config.schema}-intersect=false])`;
-    state.schema.interhref = join(
-      'a',
-      `:not([${config.schema}-disable])`,
-      `:not(a[${config.schema}-intersect=false])`,
-      ':not([href^="#"])'
-    );
-  }
-
-  if (typeof config.proximity === 'object') {
-    state.schema.proximity = join(
-      'a',
-      `[${config.schema}-proximity]`,
-      `:not([${config.schema}-proximity=false])`,
-      `:not([${config.schema}-disable])`,
-      ':not([href^="#"])'
-    );
-  }
-
-  if (typeof config.hover === 'object') {
-
-    state.schema.mouseover = config.hover.trigger === 'href' ? join(
-      'a',
-      `:not([${config.schema}-disable])`,
-      `:not([${config.schema}-hover=false])`,
-      `:not([${config.schema}-intersect])`,
-      `:not([${config.schema}-proximity])`,
-      ':not([href^="#"])'
-    ) : join(
-      'a',
-      `[${config.schema}-hover]`,
-      `:not([${config.schema}-intersect])`,
-      `:not([${config.schema}-proximity])`,
-      `:not([${config.schema}-disable])`,
-      `:not([${config.schema}-hover=false])`,
-      ':not([href^="#"])'
-    );
-
-  }
-
-  return config;
-
-}
+import { Attributes } from '../shared/enums';
+import { assign } from '../shared/native';
+import { config, selectors, memory } from './session';
+import { IConfig, IOptions } from 'types';
+import { hasProp } from '../shared/utils';
 
 /**
  * Initialize
  *
  * Connects store and intialized the workable
  * state management model. Connect MUST be called
- * upon Pjax initialization. This function acts
+ * upon SPX initialization. This function acts
  * as a class `constructor` establishing an instance.
  */
-export function initialize (options: Options = {}): IConfig {
+export function configure (options: IOptions = {}) {
 
-  if (options.hover !== false) {
-    assign<IMouseover, Options>(state.config.hover, options.hover);
+  if (hasProp(options, 'hover')) {
+    if (typeof options.hover !== 'boolean') assign(config.hover, options.hover);
+    else if (options.hover === false) config.hover = options.hover;
     delete options.hover;
   }
-  if (options.intersect !== false) {
-    assign<IIntersect, Options>(state.config.intersect, options.intersect);
+
+  if (hasProp(options, 'intersect')) {
+    if (typeof options.intersect !== 'boolean') assign(config.intersect, options.intersect);
+    else if (options.intersect === false) config.intersect = options.intersect;
     delete options.intersect;
   }
-  if (options.proximity !== false) {
-    assign<IProximity, Options>(state.config.proximity, options.proximity);
+
+  if (hasProp(options, 'proximity')) {
+    if (typeof options.proximity !== 'boolean') assign(config.proximity, options.proximity);
+    else if (options.proximity === false) config.proximity = options.proximity;
     delete options.proximity;
   }
-  if (options.progress !== false) {
-    assign(state.config.progress, options.progress);
+
+  if (hasProp(options, 'progress')) {
+    if (typeof options.progress !== 'boolean') assign(config.progress, options.progress);
+    else if (options.progress === false) config.progress = options.progress;
     delete options.progress;
   }
 
-  // Merge Configuration
-  const config = assign(state.config, options);
-  config.schema = config.schema === null ? 'data' : `data-${config.schema}`;
+  if (hasProp(options, 'session')) {
+    if (options.session === 'persist') {
 
-  // Setup Selectors
-  selectors(config);
+      const record = localStorage.getItem('spx');
 
-  return config;
+      if (record === null) {
+        config.session = Math.floor(1000 + Math.random() * 9000).toString();
+        localStorage.setItem('spx', config.session);
+      } else {
+        config.session = record;
+      }
+    }
+
+    delete options.session;
+  }
+
+  // Name of attribute selector
+  const n = config.schema === null ? 'data' : `data-${config.schema}`;
+
+  // Href Omitter
+  const h = `:not([${n}-disable]):not([href^="#"])`;
+
+  // Selectors
+  selectors.attrs = new RegExp('^href|' + n + '-(' + Attributes.NAMES + ')$', 'i');
+  selectors.hydrate = `[${n}-hydrate]`;
+  selectors.track = `[${n}-track]:not([${n}-track=false])`;
+  selectors.script = `script:not([${n}-eval=false])`;
+  selectors.style = `style:not([${n}-eval=false])`;
+  selectors.styleLink = `link[rel=stylesheet]:not([${n}-eval=false])`;
+  selectors.href = `a${h}`;
+
+  if (config.intersect !== false) {
+    selectors.intersect = `[${n}-intersect]:not([${n}-intersect=false])`;
+    selectors.interHref = `a${h}:not([${n}-intersect=false])`;
+  }
+
+  if (config.proximity !== false) {
+    selectors.proximity = `a[${n}-proximity]${h}:not([${n}-proximity=false])`;
+  }
+
+  if (config.hover !== false) {
+    selectors.hover = config.hover.trigger === 'href'
+      ? `a${h}:not([${n}-hover=false]):not([${n}-intersect]):not([${n}-proximity])`
+      : `a[${n}-hover]${h}:not([${n}-hover=false]):not([${n}-intersect]):not([${n}-proximity])`;
+  }
+
+  assign<IConfig, IOptions>(config, options);
+
+  memory.bytes = 0;
+  memory.limit = config.limit;
+  memory.visits = 0;
 
 }

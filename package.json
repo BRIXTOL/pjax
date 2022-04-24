@@ -1,23 +1,31 @@
 {
-  "name": "@brixtol/pjax",
-  "version": "0.3.0-beta.1",
+  "name": "spx",
+  "version": "0.0.2-beta.1",
   "private": false,
-  "description": "A modern next generation pjax solution for SSR web applications",
+  "description": "SPX is a new generation pjax (pushstate + XHR) solution for SSR web applications",
   "author": "ΝΙΚΟΛΑΣ ΣΑΒΒΙΔΗΣ",
-  "owner": "BRIXTOL TEXTILES",
   "license": "MIT",
   "type": "module",
   "types": "./package/types/index.d.ts",
-  "module": "./package/pjax.mjs",
-  "browser": "./package/pjax.mjs",
+  "module": "./package/spx.js",
+  "browser": "./package/spx.js",
   "exports": {
-    "import": "./package/pjax.mjs",
-    "require": "./package/pjax.js"
+    "import": "./package/spx.js"
   },
+  "keywords": [
+    "spx",
+    "pjax",
+    "navigation",
+    "browser",
+    "pushstate",
+    "stimulus",
+    "turbo",
+    "history"
+  ],
   "scripts": {
     "dev": "rollup -c -w",
-    "prod": "rollup -c -w --environment prod",
-    "build": "rollup -c --environment prod",
+    "build": "pnpm run prod && gzip-size package/spx.js --include-original",
+    "prod": "esbuild src/index.ts --minify --tree-shaking=true --format=esm --bundle --outfile=package/spx.js",
     "deploy": "pnpm run build && netlify deploy -p",
     "test": "ava --color --verbose --watch --timeout=2m"
   },
@@ -36,19 +44,14 @@
   },
   "ava": {
     "files": [
-      "tests/shopify.js"
+      "./tests/route.test.js"
     ],
     "require": [
-      "esm"
+      "./tests/__browser.js"
     ]
   },
-  "esm": {
-    "cjs": true
-  },
   "dependencies": {
-    "detect-it": "^4.0.1",
-    "history": "^5.3.0",
-    "nanoid": "^3.3.2"
+    "detect-it": "^4.0.1"
   },
   "devDependencies": {
     "@brixtol/browserslist-config": "workspace:^1.0.3",
@@ -56,16 +59,10 @@
     "@brixtol/prettier-config": "workspace:^1.2.0",
     "@brixtol/rollup-utils": "workspace:^1.0.0",
     "@brixtol/tsconfig": "workspace:^1.2.0",
-    "@types/loadjs": "^4.0.1",
     "ava": "^4.2.0",
-    "esm": "^3.2.25",
-    "rollup": "^2.70.1",
+    "browser-env": "^3.3.0",
+    "gzip-size-cli": "^5.1.0",
     "type-fest": "^2.12.2",
     "typescript": "^4.6.3"
-  },
-  "peerDependencies": {
-    "ava": "^3.13.0",
-    "esm": "^3.2.25",
-    "rollup": "^2.26.11"
   }
 }
