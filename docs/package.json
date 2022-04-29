@@ -1,0 +1,19 @@
+{
+  "name": "spx-docs",
+  "version": "1.0.0",
+  "private": true,
+  "description": "SPX Documentation",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@brixtol/bootstrap": "workspace:^1.0.0",
+    "spx": "link:.."
+  },
+  "devDependencies": {
+    "@11ty/eleventy": "^1.0.1"
+  }
+}
